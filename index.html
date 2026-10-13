@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Week 11 · Searching When You Cannot Try Everything</title>
+<meta name="description" content="INE 315 Week 11: hill climbing and simulated annealing, one card at a time.">
+<style>
+:root{
+  --bg:#faf9f7; --panel:#ffffff; --panel-2:#f3f2ef; --ink:#1b1b1a; --ink-2:#3d3d3a; --ink-3:#77766f;
+  --line:#e0dfda; --line-soft:#eceae5; --code-bg:#f7f6f3; --com:#8a8880;
+  --red:#A93226; --red-soft:rgba(169,50,38,.09); --blue:#2874A6; --blue-soft:rgba(40,116,166,.10);
+  --ok:#1e7a4b; --ok-soft:rgba(30,122,75,.10); --bad:#b0382a; --bad-soft:rgba(176,56,42,.09);
+  --amber:#c77a00;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16161a; --panel:#1e1e23; --panel-2:#26262c; --ink:#f0efea; --ink-2:#d2d1ca; --ink-3:#9a998f;
+    --line:#33333a; --line-soft:#2a2a30; --code-bg:#1a1a20; --com:#807f76;
+    --red:#D0655A; --red-soft:rgba(208,101,90,.14); --blue:#5BA3D6; --blue-soft:rgba(91,163,214,.14);
+    --ok:#4cb07a; --ok-soft:rgba(76,176,122,.14); --bad:#e06a5a; --bad-soft:rgba(224,106,90,.14);
+    --amber:#e0a94a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16161a; --panel:#1e1e23; --panel-2:#26262c; --ink:#f0efea; --ink-2:#d2d1ca; --ink-3:#9a998f;
+  --line:#33333a; --line-soft:#2a2a30; --code-bg:#1a1a20; --com:#807f76;
+  --red:#D0655A; --red-soft:rgba(208,101,90,.14); --blue:#5BA3D6; --blue-soft:rgba(91,163,214,.14);
+  --ok:#4cb07a; --ok-soft:rgba(76,176,122,.14); --bad:#e06a5a; --bad-soft:rgba(224,106,90,.14);
+  --amber:#e0a94a;
+}
+*{box-sizing:border-box}
+html,body{margin:0; padding:0}
+body{background:var(--bg); color:var(--ink); font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; padding-bottom:86px}
+code,pre,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{background:var(--panel-2); border-radius:5px; padding:1px 5px; font-size:.88em}
+kbd{background:var(--panel-2); border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:0 5px; font-size:.82em}
+b{font-weight:700}
+.top{position:sticky; top:0; z-index:20; background:color-mix(in srgb,var(--bg) 88%,transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line)}
+.in{max-width:1180px; margin:0 auto; padding:9px 16px; display:flex; gap:12px; align-items:center}
+.brand{font-weight:700; font-size:.9rem; white-space:nowrap}
+.brand span{color:var(--red)}
+.chips{display:flex; gap:6px; overflow-x:auto; flex:1; scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--line); background:var(--panel); color:var(--ink-2); border-radius:99px; padding:4px 12px;
+  font:inherit; font-size:.8rem; white-space:nowrap; cursor:pointer}
+.chip.on{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.chip.sep{cursor:default; border-style:dashed; color:var(--ink-3); font-weight:700; background:transparent}
+.tools{display:flex; gap:8px; align-items:center}
+.tbtn{border:1px solid var(--line); background:var(--panel); color:var(--ink-2); border-radius:8px; padding:4px 10px; font:inherit; font-size:.78rem; cursor:pointer}
+.timer{font-variant-numeric:tabular-nums; font-weight:700; font-size:.85rem; color:var(--ink-3); display:none; cursor:pointer}
+.timer.on{display:inline}
+.timer.up{color:var(--red)}
+main{max-width:1180px; margin:0 auto; padding:22px 16px 0}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:26px 28px; animation:in .18s ease-out}
+@keyframes in{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+.ctype{display:flex; gap:10px; align-items:center; font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:8px}
+.pill{border-radius:99px; padding:3px 10px; background:var(--panel-2); color:var(--ink-2)}
+.pill.blue{background:var(--blue-soft); color:var(--blue)}
+.pill.green{background:var(--ok-soft); color:var(--ok)}
+.pill.red{background:var(--red-soft); color:var(--red)}
+h1{font-size:clamp(1.7rem,3.6vw,2.3rem); line-height:1.15; margin:.1em 0 .3em}
+h2{font-size:clamp(1.25rem,2.6vw,1.7rem); line-height:1.2; margin:.1em 0 .45em}
+h3{font-size:1rem; margin:.2em 0 .3em}
+p.lead{color:var(--ink-2); margin:.2em 0 1em}
+.two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:26px}
+.two.wide-left{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+@media (max-width:820px){ .two,.two.wide-left{grid-template-columns:minmax(0,1fr); gap:16px} }
+ul.points{margin:.2em 0; padding:0; list-style:none}
+ul.points li{position:relative; padding-left:1.7em; margin:.55em 0}
+ul.points li::before{counter-increment:p; content:counter(p); position:absolute; left:0; top:.15em; width:1.15em; height:1.15em;
+  border-radius:50%; background:var(--red-soft); color:var(--red); font-size:.72em; font-weight:800; display:grid; place-items:center}
+ul.points{counter-reset:p}
+.notebox{margin-top:14px; background:var(--panel-2); border-radius:12px; padding:11px 15px; font-size:.93rem}
+.tag{font-size:.66rem; font-weight:800; letter-spacing:.08em; border-radius:6px; padding:2px 7px; margin-left:8px; vertical-align:middle;
+  background:var(--panel-2); color:var(--ink-3); border:1px solid var(--line)}
+.tag.PYTHON{background:var(--red-soft); color:var(--red); border-color:var(--red)}
+pre.code{margin:0; background:var(--code-bg); border:1px solid var(--line); border-radius:13px; padding:12px 0; font-size:.9rem; line-height:1.65; overflow-x:auto}
+pre.code.big{font-size:.95rem}
+.ln{display:block; padding:0 16px 0 0; white-space:pre}
+.ln .no{display:inline-block; width:2.4em; padding-right:.9em; text-align:right; color:var(--ink-3); opacity:.6; user-select:none}
+.ln.click{cursor:pointer}
+.ln.click:hover{background:var(--panel-2)}
+.ln.cur{background:var(--blue-soft)}
+.ln.right{background:var(--ok-soft)} .ln.wrong{background:var(--bad-soft)}
+.tk-kw{color:var(--red); font-weight:700} .tk-str{color:var(--blue)} .tk-num{color:var(--amber)}
+.tk-com{color:var(--com); font-style:italic} .tk-fn{color:var(--blue)}
+.opts{display:grid; gap:9px}
+.opt{display:flex; gap:11px; align-items:flex-start; text-align:left; border:1px solid var(--line); background:var(--panel);
+  border-radius:12px; padding:10px 13px; font:inherit; cursor:pointer; color:var(--ink)}
+.opt:hover{border-color:var(--ink-3)}
+.opt .l{font-weight:800; color:var(--ink-3)}
+.opt pre{margin:0; font-size:.86rem; white-space:pre-wrap; word-break:break-word}
+.opt.right{border-color:var(--ok); background:var(--ok-soft)}
+.opt.right .l{color:var(--ok)}
+.opt.dim{opacity:.45}
+.reveal{max-height:0; overflow:hidden; opacity:0; transition:max-height .25s ease,opacity .25s ease}
+.reveal.show{max-height:2200px; opacity:1; margin-top:14px}
+.cap{font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:800; margin:10px 0 5px}
+pre.out{margin:0; background:var(--panel-2); border:1px solid var(--line); border-radius:11px; padding:10px 14px;
+  font-size:.9rem; white-space:pre; overflow-x:auto; min-height:2.4em}
+pre.out.empty{color:var(--ink-3); font-style:italic}
+.ask{font-size:.9rem; color:var(--ink-3); margin-top:10px}
+.btn{border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:10px; padding:7px 15px; font:inherit; cursor:pointer}
+.btn.primary{background:var(--red); border-color:var(--red); color:#fff; font-weight:700}
+.btn.blue{background:var(--blue); border-color:var(--blue); color:#fff; font-weight:700}
+.btn.sm{padding:5px 11px; font-size:.86rem}
+.btn:disabled{opacity:.45; cursor:default}
+.row{display:flex; gap:9px; align-items:center; flex-wrap:wrap}
+.stepinfo{font-size:.85rem; color:var(--ink-3)}
+.note{background:var(--panel-2); border-left:3px solid var(--red); border-radius:0 10px 10px 0; padding:10px 14px; font-size:.94rem; min-height:3.2em}
+table.vars{width:100%; border-collapse:collapse; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86rem}
+table.vars td{padding:4px 8px; border-bottom:1px dotted var(--line-soft)}
+table.vars td:first-child{color:var(--ink-2); width:45%}
+table.vars td:last-child{color:var(--red); font-weight:700}
+table.vars tr.chg td{background:var(--red-soft)}
+.frame{border:1px solid var(--line); border-radius:11px; padding:7px 9px; margin-bottom:9px; background:var(--panel)}
+.frame .fh{font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); font-weight:800; margin-bottom:3px}
+.pz{display:grid; gap:6px; margin-top:8px; overflow-x:auto}
+.pzl{display:flex; gap:10px; align-items:center; min-width:0; border:1px solid var(--line); border-radius:10px; padding:5px 10px; background:var(--panel)}
+.pzl.ok{border-color:var(--ok); background:var(--ok-soft)} .pzl.no{border-color:var(--bad); background:var(--bad-soft)}
+.pzl .ctl{display:flex; gap:4px}
+.pzl .ctl button{width:26px; height:26px; border:1px solid var(--line); background:var(--panel-2); color:var(--ink); border-radius:7px; cursor:pointer; font-size:.8rem}
+.pzl .txt{flex:1; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88rem; white-space:pre}
+.pzl .mark{font-weight:800; width:1em}
+.fb{margin-top:10px; font-size:.95rem}
+.errline{margin-top:12px; background:var(--bad-soft); border:1px solid var(--bad); border-radius:11px; padding:10px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88rem}
+.cause{margin-top:12px; background:var(--panel-2); border-radius:12px; padding:12px 15px; font-size:.94rem}
+.exp{margin-top:12px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px}
+.exp .box{border-radius:11px; padding:8px 12px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.87rem; white-space:pre-wrap}
+.exp .want{background:var(--ok-soft); border:1px solid var(--ok)}
+.exp .got{background:var(--bad-soft); border:1px solid var(--bad)}
+.exp .k{display:block; font-family:inherit; font-size:.66rem; letter-spacing:.07em; text-transform:uppercase; font-weight:800; color:var(--ink-3); margin-bottom:2px}
+.cls{display:grid; gap:8px; margin-top:8px}
+.clrow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; border:1px solid var(--line); border-radius:11px; padding:8px 13px; background:var(--panel)}
+.clrow.ok{border-color:var(--ok); background:var(--ok-soft)} .clrow.no{border-color:var(--bad); background:var(--bad-soft)}
+.clrow .cli{flex:1; min-width:150px}
+.clb{display:flex; gap:6px; flex-wrap:wrap}
+.binb{font:inherit; font-size:.82rem; border:1px solid var(--line); background:var(--panel-2); color:var(--ink-2); border-radius:99px; padding:4px 12px; cursor:pointer}
+.binb.on{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.clrow .mark{font-weight:800; width:1em}
+.ftab{width:100%; border-collapse:collapse; font-size:.94rem; margin-top:10px}
+.ftab td{padding:7px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+.ftab{table-layout:fixed}
+.ftab td:first-child{width:40%}
+.ftab td:last-child{overflow-wrap:anywhere}
+.ftab td:last-child{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--blue); font-size:.86rem}
+.ftab th{text-align:left; font-size:.68rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); padding:4px 10px; border-bottom:1px solid var(--line)}
+.etab,.sum{width:100%; border-collapse:collapse; font-size:.94rem}
+.etab th,.sum th{text-align:left; font-size:.68rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); padding:6px 9px; border-bottom:1px solid var(--line)}
+.etab td,.sum td{padding:8px 9px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+.etab td:last-child{color:var(--ink-3)}
+.sum td:first-child{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--blue)}
+.sum td{overflow-wrap:anywhere}
+.chatbar{display:flex; gap:12px; align-items:center; background:var(--panel-2); border-radius:12px; padding:11px 15px; margin-top:16px; font-size:.93rem}
+.exlist{display:grid; grid-template-columns:minmax(0,1fr); gap:10px; margin-top:6px}
+.ex{border:1px solid var(--line); border-radius:12px; padding:11px 15px; background:var(--panel); min-width:0}
+.ex .h{display:flex; gap:9px; align-items:center; flex-wrap:wrap}
+.ex .id{font-weight:800; color:var(--red)}
+.ex .kind{font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; font-weight:800; border-radius:6px; padding:2px 7px; background:var(--panel-2); color:var(--ink-3)}
+.ex .task{margin:6px 0 0; font-size:.94rem; color:var(--ink-2)}
+.star{font-size:.72rem; color:var(--amber); font-weight:700}
+.session{min-height:58vh; display:flex; flex-direction:column; justify-content:center}
+.banner{display:inline-block; font-size:.78rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; background:var(--red); color:#fff; border-radius:99px; padding:4px 14px; margin-bottom:12px}
+.banner.s2{background:var(--blue)}
+.recap{background:var(--panel-2); border-radius:12px; padding:12px 16px; margin:10px 0 16px; font-size:.95rem}
+.demolist{display:grid; gap:8px; margin-top:6px}
+.demolist div{border:1px solid var(--line); border-radius:10px; padding:8px 12px; background:var(--panel)}
+.rhythm{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr)); gap:10px; margin-top:18px}
+.rh{border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:var(--panel)}
+.rh .k{font-size:.7rem; font-weight:800; color:var(--red)}
+.rh .t{font-weight:700; font-size:.95rem}
+.rh .d{font-size:.84rem; color:var(--ink-3)}
+.hint{font-size:.83rem; color:var(--ink-3); margin-top:6px}
+.tasks{margin:10px 0 0; padding-left:1.2em; font-size:.95rem}
+.tasks li{margin:5px 0}
+.livecode{margin:0; background:var(--code-bg); border:1px solid var(--line); border-radius:12px; padding:11px 15px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86rem; white-space:pre-wrap; word-break:break-word; line-height:1.6}
+.livecode .res{color:var(--red); font-weight:700}
+.livecode .cm{color:var(--com); font-style:italic}
+.livecode .on{color:var(--ok); font-weight:700}
+/* --- live widgets --- */
+.panelbox{border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:var(--panel); min-width:0}
+.panelbox h4{margin:0 0 8px; font-size:.95rem}
+.panelbox.bad{border-color:var(--bad)}
+.btnrow{display:flex; gap:10px; flex-wrap:wrap; margin:6px 0 12px}
+.push{border:1px solid var(--line); border-radius:12px; padding:9px 14px; font:inherit; font-weight:700; font-size:.86rem;
+  background:var(--panel-2); color:var(--ink-2); cursor:pointer; user-select:none}
+.push.on{color:#fff}
+.push.estop.on{background:var(--red); border-color:var(--red)}
+.push.stop.on{background:var(--ink-3); border-color:var(--ink-3)}
+.push.start.on{background:var(--ok); border-color:var(--ok)}
+.lamp{display:flex; gap:10px; align-items:center; font-weight:700; font-size:.9rem}
+.bulb{width:30px; height:30px; border-radius:50%; border:2px solid var(--line); background:var(--panel-2)}
+.bulb.lit{background:var(--amber); border-color:var(--amber); box-shadow:0 0 14px var(--amber)}
+.codeline{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.83rem; padding:2px 6px; border-radius:6px; white-space:pre; overflow-x:auto}
+#chain,#steps{overflow-x:auto}
+.codeline.hit{background:var(--blue-soft)}
+.codeline.dead{opacity:.4}
+.sl{display:grid; grid-template-columns:6.4em minmax(0,1fr) 4em; gap:10px; align-items:center; margin:8px 0; font-size:.9rem}
+.sl input[type=range]{width:100%; accent-color:var(--blue)}
+.sl b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; text-align:right}
+.tin{display:grid; grid-template-columns:6.4em minmax(0,1fr); gap:10px; align-items:center; margin:8px 0; font-size:.9rem}
+.tin input[type=text],.tin input[type=number]{font:inherit; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9rem;
+  padding:6px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--ink); width:100%}
+.console{background:#14141a; color:#e8e7e1; border-radius:12px; padding:10px 13px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.82rem; line-height:1.55; height:210px; overflow-y:auto; border:1px solid var(--line)}
+.console .t{color:#8fb7d8} .console .m{color:#e8e7e1} .console .me{color:#f0b429; font-weight:700} .console .sys{color:#8a8880; font-style:italic}
+svg.dg{display:block; width:100%; height:auto}
+svg.dg .bx{fill:var(--panel-2); stroke:var(--line); stroke-width:1.5}
+svg.dg .bx.acc{fill:var(--red-soft); stroke:var(--red)}
+svg.dg .bx.b2{fill:var(--blue-soft); stroke:var(--blue)}
+svg.dg .tx{fill:var(--ink); font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+svg.dg .sm{fill:var(--ink-3); font:500 11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+svg.dg .ar{stroke:var(--ink-3); stroke-width:1.6; fill:none; marker-end:url(#ah)}
+.plantab{width:100%; border-collapse:collapse; font-size:.86rem}
+.plantab th{text-align:left; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--ink-3); border-bottom:1px solid var(--line); padding:0 6px 5px 0; font-weight:700}
+.plantab td{padding:4px 6px 4px 0; border-bottom:1px solid var(--line-soft)}
+.plantab tbody tr{cursor:pointer}
+.plantab tbody tr:hover{background:var(--panel-2)}
+.plantab tr.on{background:var(--ok-soft)}
+.plantab tr.on .nm{font-weight:600}
+.plantab tr.hi{outline:2px solid var(--red); outline-offset:-2px}
+.plantab .tick{width:1.2em; color:var(--ok); font-weight:700}
+.plantab .num{text-align:right; width:3em; font-variant-numeric:tabular-nums; color:var(--ink-3)}
+.ro{border:1px solid var(--line); border-radius:12px; padding:11px 13px; background:var(--panel-2)}
+.ro .bar{height:9px; border-radius:6px; background:var(--line); overflow:hidden; margin-bottom:10px}
+.ro .bar i{display:block; height:100%; background:var(--ok)}
+.ro .bar.over i{background:var(--bad)}
+.rorow{display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; font-size:.9rem}
+.rorow span{color:var(--ink-3)}
+.rorow b{font-variant-numeric:tabular-nums}
+.rorow.big{border-top:1px solid var(--line); margin-top:6px; padding-top:7px; font-size:1.05rem}
+.rorow .bad{color:var(--bad)}
+.climbbox{margin-top:12px; border:1px solid var(--blue); background:var(--blue-soft);
+  border-radius:12px; padding:10px 13px; font-size:.92rem; line-height:1.55}
+.climbbox.stuck{border-color:var(--bad); background:var(--bad-soft)}
+.sl{display:block; margin-bottom:14px; font-size:.92rem}
+.sl input[type=range]{display:block; width:100%; margin:7px 0 2px}
+.slv{color:var(--ink-3); font-size:.85rem; font-variant-numeric:tabular-nums}
+.formula{margin-top:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.95rem; background:var(--code-bg); border:1px solid var(--line); border-radius:10px; padding:9px 12px}
+.probbar{height:16px; border-radius:8px; background:var(--line); overflow:hidden; margin-top:10px}
+.probbar i{display:block; height:100%; background:var(--blue); transition:width .12s}
+.tspsvg .leg{stroke:var(--ink-3); stroke-width:1.8; fill:none}
+.tspsvg .leg.hot{stroke:var(--red); stroke-width:3.2}
+.tspsvg .stop{fill:var(--panel); stroke:var(--ink-2); stroke-width:2; cursor:pointer}
+.tspsvg .stop:hover{stroke:var(--blue); stroke-width:3}
+.tspsvg .stop.home{fill:var(--blue-soft); stroke:var(--blue); stroke-width:2.5}
+.tspsvg .stop.sel{fill:var(--red-soft); stroke:var(--red); stroke-width:3}
+.tspsvg .so{fill:var(--ink); font:700 10px -apple-system,sans-serif; pointer-events:none}
+.tspsvg .sn{fill:var(--ink-3); font:500 9.5px -apple-system,sans-serif; pointer-events:none}
+svg.dg .ax{stroke:var(--line); stroke-width:1.4}
+svg.dg .opt{stroke:var(--ok); stroke-width:1.4; stroke-dasharray:5 4}
+svg.dg .dot{fill:var(--ink-3)}
+svg.dg .bestline{fill:none; stroke:var(--red); stroke-width:2.4}
+svg.dg .hcline{fill:none; stroke:var(--blue); stroke-width:2.4}
+svg.dg .saline{fill:none; stroke:var(--red); stroke-width:2.4}
+.stopped{color:var(--bad)}
+.btn.sm.primary{background:var(--red); color:#fff; border-color:var(--red)}
+.tasksbelow{margin-top:16px; border-top:1px solid var(--line); padding-top:12px}
+.tasksbelow .tasks{columns:2; column-gap:26px}
+@media (max-width:700px){ .tasksbelow .tasks{columns:1} }
+.figwrap .tspsvg{min-width:0}
+svg.dg .hcdead{fill:none; stroke:var(--blue); stroke-width:2; stroke-dasharray:5 4; opacity:.75}
+svg.dg .stopdot{fill:var(--bad)}
+svg.dg .saline{fill:none; stroke:var(--red); stroke-width:2.4}
+svg.dg .hcline{fill:none; stroke:var(--blue); stroke-width:2.6}
+.racetab th, .racetab td{padding-right:14px}
+.racetab th:first-child{width:9em}
+svg.dg .saname{fill:var(--red); font-weight:700}
+svg.dg .sm.stopped{fill:var(--bad); font-weight:700}
+.nav{position:fixed; left:0; right:0; bottom:0; background:color-mix(in srgb,var(--bg) 92%,transparent); backdrop-filter:blur(8px); border-top:1px solid var(--line); z-index:20}
+.nav .in{justify-content:space-between}
+.prog{height:3px; background:var(--red); width:0; transition:width .2s}
+.navbtn{border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:10px; padding:9px 18px; font:inherit; font-weight:700; cursor:pointer}
+.navbtn.next{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.navbtn:disabled{opacity:.35; cursor:not-allowed}
+#where{font-size:.82rem; color:var(--ink-3); text-align:center}
+@media (max-width:700px){ .brand{display:none} .card{padding:18px 15px; border-radius:14px} main{padding:14px 10px 0} }
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <div class="brand">INE 315 · <span>Week 11</span></div>
+  <nav class="chips" id="chips" aria-label="Sections"></nav>
+  <div class="tools">
+    <span class="timer" id="timer" title="Click to pause, double-click to stop"></span>
+    <button class="tbtn" id="themeBtn" title="Colour theme">Theme</button>
+  </div>
+</div><div class="prog" id="prog"></div></div>
+
+<main><div id="stage"></div></main>
+
+<div class="nav"><div class="in">
+  <button class="navbtn" id="prevBtn">&larr; Back</button>
+  <div id="where"></div>
+  <button class="navbtn next" id="nextBtn">Next &rarr;</button>
+</div></div>
+
+<script>const DATA={"week":{"n":11,"label":"Week 11","brand":"Week 11","title":"Searching when you cannot try everything","sub":"Two sessions: climb to the top of a hill, then learn why that is not enough","lead":"A maintenance crew has <b>40 hours<\/b> and <b>20 jobs<\/b> waiting. There are <b>1,048,576<\/b> possible plans, so you cannot look at them all. This week you write a program that searches instead. <b>The factory is the setting; <code>for<\/code> loops, <code>if<\/code> statements and functions are the content.<\/b> No formula here is examined.","lesson_label":"Why:"},"sessions":{"1":{"title":"One plan, one value, one climb","goal":"Write the objective function, write the neighbourhood, and watch hill climbing walk uphill until it cannot.","two":["a <b>plan<\/b> is twenty 0s and 1s, and a function scores it","a <b>neighbour<\/b> is one change away, and there are exactly twenty"],"recap":"Before we start: this week there is no new Python. Everything is <code>for<\/code>, <code>if<\/code>, functions and lists &mdash; the parts you already have.","demos":["Demo 1: scoring one plan, including the penalty","Demo 2: the climb, one best change at a time"],"notebooks":["week11_session1_hill_climbing.ipynb"]},"2":{"title":"Escaping a local optimum","goal":"Prove the climber is trapped, then change one line of the acceptance rule so it can get out.","two":["a <b>local optimum<\/b> is a plan where no single change helps","<b>simulated annealing<\/b> sometimes accepts a worse plan, less and less often"],"recap":"Last session: your climber stopped at about <b>141.8<\/b> on average. The best possible is <b>149<\/b>. Today we find out why, and fix it.","demos":["Demo 3: twenty neighbours, all worse","Demo 4: the acceptance rule, hot and cold"],"notebooks":["week11_session2_annealing.ipynb"]}},"exercises":{"week11_session1_hill_climbing.ipynb":[{"id":"1.1","kind":"Write it","title":"How many hours?","star":false,"task":"Write <code>total_hours(plan)<\/code>. One line, if you use <code>plan @ HOURS<\/code>."},{"id":"1.2","kind":"Write it","title":"How good is a plan?","star":false,"task":"Write <code>plan_value(plan)<\/code>: the risk it removes, minus a penalty for every hour over 40."},{"id":"1.3","kind":"Predict","title":"Score it by hand first","star":false,"task":"<b>Predict first:<\/b> work out the value of one given plan with a pen, then run the check."},{"id":"1.4","kind":"Write it","title":"One small change","star":false,"task":"Write <code>flip(plan, i)<\/code> returning a <b>new<\/b> plan with job <code>i<\/code> switched. The original must not change."},{"id":"1.5","kind":"Fill in","title":"Look at all twenty","star":false,"task":"Write <code>best_neighbour(plan)<\/code>, returning the best of the twenty one-change plans <b>and<\/b> its value."},{"id":"1.6","kind":"Fill in","title":"The climb","star":false,"task":"Finish <code>hill_climb<\/code>: keep taking the best change, and <code>break<\/code> when none of them helps."},{"id":"1.7","kind":"Write it","title":"Does the start matter?","star":true,"task":"Climb from twenty different random starts. How many different answers do you get, and why?"}],"week11_session2_annealing.ipynb":[{"id":"2.1","kind":"Write it","title":"Is this a dead end?","star":false,"task":"Write <code>is_local_optimum(plan)<\/code>: <code>True<\/code> when no single change improves it."},{"id":"2.2","kind":"Fill in","title":"Try again from somewhere else","star":false,"task":"Write <code>multistart(n_starts, seed)<\/code>: climb <code>n_starts<\/code> times, keep the best."},{"id":"2.3","kind":"Predict","title":"Work out the probability","star":false,"task":"<b>Predict first:<\/b> a move is 4 points worse and the temperature is 10. What is the chance it is accepted?"},{"id":"2.4","kind":"Write it","title":"The acceptance rule","star":false,"task":"Write <code>accept(delta, T, rng)<\/code>. Better moves always pass; worse ones pass with probability <code>exp(delta/T)<\/code>."},{"id":"2.5","kind":"Fill in","title":"Simulated annealing","star":false,"task":"Finish the loop: random flip, work out <code>delta<\/code>, ask <code>accept<\/code>, keep the best seen, then cool down."},{"id":"2.6","kind":"Write it","title":"A fair comparison","star":false,"task":"Run both algorithms from the same twenty starts. Report mean, worst and best for each."},{"id":"2.7","kind":"Write it","title":"Does the cooling rate matter?","star":true,"task":"Try four values of <code>alpha<\/code>. One is much worse than the others &mdash; say which, and why."}]},"blocks":[{"session":1,"id":"A0","short":"The wall","title":"Why not just try them all?","cards":[{"kind":"idea","tag":"IDEA","title":"Exact methods are still the right answer — until they are not","points":["In Weeks 3 to 5 you solved transportation and assignment problems with PuLP, and the solver gave you the <b>provably best<\/b> answer.","That is better than anything this week will give you. <b>When an exact method works, use it.<\/b>","But some problems have too many possible answers, or rules a solver cannot express, or need an answer before lunch.","<b>Near-optimal in seconds beats optimal next Tuesday<\/b> when the crew is standing in the workshop waiting for the list."],"note":"<b>This week is not a replacement for Week 3.<\/b> It is what you reach for when the model stops fitting in a solver."},{"kind":"live","mode":"explode","title":"How big is the pile you are not going to look at?","tasks":["Drag to <b>20 jobs<\/b>. How long would checking every plan take?","Now <b>50<\/b>. And <b>100<\/b>. Does a faster computer fix this?","Switch to <b>what order<\/b> and drag to 20 stops. Which of the two grows faster?"]},{"kind":"predict","question":"A plant has 60 machines to inspect. How many possible orders are there?","code":"import math\nprint(math.factorial(59) // 2)","options":["about 3,600","about 10 million","a 80-digit number","an error: too big"],"answer":2,"output":"69108319... (80 digits)","explain":"<b>Python will happily compute it<\/b> &mdash; it handles whole numbers of any size. The number has eighty digits, which is more than the atoms in the visible universe. <b>Nothing is wrong with the arithmetic; the plan of checking them all is what is wrong.<\/b>"}]},{"session":1,"id":"A1","short":"The plan","title":"What one answer looks like","cards":[{"kind":"idea","tag":"PYTHON","title":"A plan is twenty decisions, written as 0s and 1s","points":["Twenty jobs are waiting. For each one you either do it or you do not. That is <b>one decision per job<\/b>.","Write it as a list: <code>[1, 0, 1, 0, 0, ...]<\/code>. A <code>1<\/code> means do that job.","This is called the <b>encoding<\/b>. Choosing it is the first thing you do in any search problem, and a good one makes everything else easy.","<b>Why a list of 0s and 1s and not twenty variables?<\/b> Because a list can be looped over, copied and changed by index. Twenty separate variables cannot."],"note":"<b>There are 2<sup>20<\/sup> = 1,048,576 plans.<\/b> That is small enough that we checked every one of them by brute force, so we know the best possible answer is <b>149<\/b>. Remember that number; it is the only reason we can mark our own homework this week."},{"kind":"live","mode":"plan","title":"Build a plan and watch it score","tasks":["Press <b>Everything<\/b>. Why is the value so bad when the risk removed is so high?","Press <b>Nothing<\/b>, then add jobs one at a time. How close to 149 can you get by hand?","Find a plan that uses exactly 40 hours. Is it the best one?"]},{"kind":"predict","question":"Every job takes 132 hours in total. What does the penalty do to a plan that does them all?","code":"hours = 132\nrisk  = 475\nvalue = risk - 6 * (hours - 40)\nprint(value)","options":["475","-77","yes, it is over budget","an error"],"answer":1,"output":"-77","explain":"<b>132 hours is 92 hours over the 40 you have.<\/b> At 6 points an hour that is a 552-point penalty against 475 points of risk removed, so the plan scores &minus;77. The search is allowed to look at plans like this, but it will never want one."}]},{"session":1,"id":"A2","short":"The score","title":"The objective function","cards":[{"kind":"idea","tag":"PYTHON","title":"One number that says how good a plan is","points":["A search cannot compare two plans until something turns each one into a <b>number<\/b>. That function is the <b>objective<\/b>.","Here, bigger is better: we are removing risk.","<b>Over budget is allowed, but it costs.<\/b> Six risk points for every hour over. This is a <i>penalty<\/i>, and it is one of the three ways to deal with a broken constraint &mdash; repair it, refuse it, or charge for it.","Why allow it at all? Because a fence makes the search work harder. Letting it step briefly over the line lets it cross from one good region to another."],"code":"def plan_value(plan):\n    risk  = plan @ RISK\n    hours = plan @ HOURS\n\n    if hours <= CAPACITY:\n        return risk\n\n    return risk - PENALTY * (hours - CAPACITY)","note":"<b>The penalty has to be big enough.<\/b> The greediest job here removes 4.5 risk points per hour. We charge 6. If we charged 4, the search would happily run over budget for ever, because breaking the rule would pay."},{"kind":"classify","title":"Sort these plans","bins":["fits in 40 hours","over budget","the best possible"],"task":"Four plans. Put each in the right box.","items":["every job: 132 hours, 475 risk","nothing at all: 0 hours, 0 risk","8 jobs: 40 hours, 149 risk","10 jobs: 44 hours, 158 risk"],"answers":[1,0,2,1],"after":"<b>Doing nothing fits.<\/b> It is feasible and completely useless, which is a good reminder that feasibility is not quality. <b>The 44-hour plan removes more risk<\/b> than the best one &mdash; 158 against 149 &mdash; but it scores 158 &minus; 24 = 134 once the penalty lands. Only the 40-hour plan is both legal and best."},{"kind":"idea","tag":"PYTHON","title":"A neighbour is one change away","points":["To <i>search<\/i>, you need a way to step from one plan to a nearby one. That step is called a <b>move<\/b>, and the set of plans you can reach in one move is the <b>neighbourhood<\/b>.","Here the natural move is: <b>change your mind about exactly one job<\/b>.","So every plan has exactly <b>twenty<\/b> neighbours &mdash; one per job.","<b>This choice matters more than the algorithm.<\/b> The neighbourhood decides what the search is able to find at all."],"code":"def flip(plan, i):\n    new_plan = plan.copy()      # copy first\n    new_plan[i] = 1 - new_plan[i]\n    return new_plan","note":"<b>Why <code>.copy()<\/code>?<\/b> Without it you change the plan you were given, and the caller's plan changes underneath them. This is the single most common bug in this week's notebook."}]},{"session":1,"id":"A3","short":"The climb","title":"Hill climbing","cards":[{"kind":"idea","tag":"PYTHON","title":"The whole algorithm, in one sentence","points":["<b>Keep taking the best single change. Stop when no single change helps.<\/b>","That is hill climbing. There is nothing else to it.","It has <b>no parameters<\/b> &mdash; nothing to tune, nothing to get wrong.","And it is <b>deterministic<\/b>: the same starting plan always ends in the same place."],"code":"while True:\n    candidate, candidate_value = best_neighbour(current)\n\n    if candidate_value <= current_value:\n        break               # nothing helps: we are at the top\n\n    current, current_value = candidate, candidate_value"},{"kind":"live","mode":"climb","title":"Climb it yourself","tasks":["Press <b>Take the best change<\/b> until it stops. How many steps did it take?","Press <b>New random start<\/b> and climb again. Did you finish at the same value?","Do that five times. Write down the five answers. <b>How many are 149?<\/b>"]},{"kind":"predict","question":"Hill climbing is run 300 times from 300 random starts. How often does it find the best plan, 149?","code":"results = [hill_climb(random_plan(seed))\n           for seed in range(300)]\n\nprint(sum(r == 149 for r in results))","options":["about 150 times","about 30 times","0 times","300 times"],"answer":2,"output":"0","explain":"<b>Not once in 300 tries.<\/b> It averages 141.8 and its best ever run reached 148. The reason is on the next card, and it is not that the algorithm is broken &mdash; every single run did exactly what it was told."}]},{"session":1,"id":"A4","short":"A second problem","title":"The same four ingredients, a different shape","cards":[{"kind":"idea","tag":"IDEA","title":"The same four ingredients, a different problem","points":["The crew now has its list. <b>In what order should the technician walk to the machines?<\/b> Start at the workshop, visit all nine, come back.","<b>Encoding:<\/b> not 0s and 1s any more &mdash; an <b>order<\/b>, like <code>[0, 3, 7, 1, ...]<\/code>. Every stop appears exactly once.","<b>Objective:<\/b> the total walking distance. Smaller is better, so this one we <i>minimise<\/i>.","<b>Neighbourhood:<\/b> now there is a choice. <b>Swap<\/b> two stops, or <b>reverse<\/b> a whole stretch of the round."],"formulas":[["which jobs","a list of 0s and 1s"],["what order","a permutation"],["flip one job","swap two stops"],["maximise risk removed","minimise metres walked"]],"fhead":["Session 1 so far","this problem"],"note":"<b>Nothing about hill climbing changes.<\/b> Propose a change, score it, take it if it helps. Only the three problem parts are different, which is the whole reason meta-heuristics are worth learning once."},{"kind":"live","mode":"tsp","title":"Walk the round yourself","tasks":["Click <b>two stops<\/b>, then <b>Swap the two<\/b>. Did the round get shorter or longer?","Press <b>Best swap<\/b> over and over until it says none helps. What length did you stop at?","Now press <b>Best reverse<\/b>. <b>Does a move the other neighbourhood could not see still help?<\/b>","Press <b>Greedy start<\/b>. The obvious rule gives 761 m against a best of 630 m."]},{"kind":"predict","question":"Same algorithm, same problem, 200 random starts. Only the move is different. Which finds the best round more often?","code":"swap    two stops trade places\nreverse turn a stretch of the round around","options":["swap, because it is simpler","they are the same","reverse, by a long way","neither ever finds it"],"answer":2,"output":"swap     41%\nreverse  76%","explain":"<b>41% against 76%, from changing nothing but the definition of a small move.<\/b> Reversing a stretch can undo a crossing in the route in one go; swapping two stops usually cannot. <b>The neighbourhood decides what the search is able to see<\/b>, and it matters more here than the choice of algorithm."},{"kind":"classify","title":"Which encoding would you use?","bins":["a list of 0s and 1s","an order","neither"],"task":"Four IE decisions. Which encoding fits each one naturally?","items":["Which of 30 maintenance jobs to do this week","The sequence 12 jobs go through one machine","Which 5 of 40 sites to open a depot on","How much to set a furnace temperature to"],"answers":[0,1,0,2],"after":"<b>The furnace is neither<\/b> &mdash; it is a real number, so the encoding is a decimal and the move is a small nudge up or down. <b>Choosing the encoding is the first decision you make<\/b>, and it quietly decides what the rest of the design can look like."}]},{"session":1,"id":"A5","short":"Your turn","title":"Your turn, and what is examinable","cards":[{"kind":"yourturn","minutes":12,"notebook":"week11_session1_hill_climbing.ipynb","sub":"In Colab, in <code>week11_session1_hill_climbing.ipynb<\/code>. <b>Start now and finish at home.<\/b> Exercises 1.1 to 1.6 build the algorithm one function at a time; 1.7 runs it twenty times.","chat":"Get to 1.2 before you leave. If a check says NOT YET, read the sentence after it — it tells you which case failed."},{"kind":"table","title":"What is examinable from Session 1","rows":[["Writing a function that returns a number","Why 149 is the optimum"],["<code>if<\/code> / <code>else<\/code> inside a function","The penalty value of 6"],["<code>.copy()<\/code> before changing a list","Knapsack theory"],["A <code>for<\/code> loop that keeps the best of several","How many local optima exist"],["Returning two things from a function","NP-hardness"],["Reading a <code>while<\/code> loop with a <code>break<\/code>",""]],"note":"<b>Next session:<\/b> why it stops early, and the one line that fixes it."}]},{"session":2,"id":"B1","short":"Stuck","title":"Why it stops early","cards":[{"kind":"idea","tag":"PYTHON","title":"A local optimum is a plan with no better neighbour","points":["Hill climbing did not give up. It stopped because <b>all twenty<\/b> of its neighbours were worse.","A plan like that is called a <b>local optimum<\/b>: the best thing in its own neighbourhood, and nothing more.","The best plan overall is the <b>global<\/b> optimum. There is only one of those.","<b>This problem has 14,148 local optima<\/b> out of 1,048,576 plans &mdash; about one in seventy-four. Only four of them reach 149."],"note":"So a random climb has roughly four chances in fourteen thousand of landing on a plan worth 149. <b>In 300 attempts it never did.<\/b> That is not bad luck; it is arithmetic."},{"kind":"live","mode":"climb","title":"Reach the top, then look around","tasks":["Press <b>Climb to the top<\/b>. The box turns red when nothing helps any more.","Look at the hours bar. Is the plan using all 40 hours?","<b>The hard question:<\/b> you can see the plan is not worth 149. Why can the algorithm not see that?"]},{"kind":"classify","title":"Stuck, or just slow?","bins":["still has a better neighbour","is a local optimum","cannot tell without looking"],"task":"Four situations. Which of them means hill climbing will stop?","items":["one of the twenty changes gains 3 points","all twenty changes lose points","the plan uses exactly 40 hours","the plan scores 148, one short of the best"],"answers":[0,1,2,2],"after":"<b>Using all 40 hours tells you nothing<\/b> &mdash; plenty of full plans still have a better neighbour, and the optimum happens to be one of them. <b>Scoring 148 tells you nothing either.<\/b> Being stuck is about the <i>neighbours<\/i>, never about the plan's own number."},{"kind":"predict","question":"The climber is stuck at 141. What happens if you just let it keep running?","code":"for step in range(1000000):\n    candidate, value = best_neighbour(current)\n    if value <= current_value:\n        break\n    ...","options":["it eventually escapes","it stops immediately","it loops for ever","it crashes"],"answer":1,"output":"","explain":"<b>It stops on the very first pass of the loop.<\/b> More time cannot help, because the rule itself forbids the only move that would get it out: a step downhill. The fix has to change the <i>rule<\/i>, not the budget."}]},{"session":2,"id":"B2","short":"Try again","title":"The cheap fix, and why it is not enough","cards":[{"kind":"idea","tag":"PYTHON","title":"Multistart: climb many times, keep the best","points":["If one start lands badly, start again somewhere else and keep the better answer.","This is a <b>for loop around the whole algorithm<\/b> &mdash; no new ideas needed.","It genuinely helps: one start averages 141.6, fifty starts average 146.6.","But fifty starts cost fifty times as much, and <b>still reach 149 in only 2% of runs<\/b>."],"code":"best = -1e9\n\nfor _ in range(n_starts):\n    value = hill_climb(random_plan(rng))\n\n    if value > best:\n        best = value","formulas":[["1 start","141.6"],["2 starts","143.1"],["5 starts","144.4"],["10 starts","145.3"],["20 starts","146.0"],["50 starts","146.6"]],"fhead":["how many climbs","mean value"],"note":"<b>Look at the shape of that table.<\/b> Each doubling buys less than the one before. Throwing more restarts at it is paying more and more for less and less."},{"kind":"live","mode":"restarts","title":"Press restart, and watch the gain shrink","tasks":["Press <b>One more restart<\/b> ten times. Watch the red line, which is the best you have kept.","Now press <b>Ten more<\/b> three times. <b>How much did thirty extra restarts buy you?<\/b>","Does the red line ever reach the green one?"]},{"kind":"bug","title":"One word, and multistart stops working","code":"best = -1e9\n\nfor _ in range(n_starts):\n    best = hill_climb(random_plan(rng))\n\nprint(best)","expected":"the best of the restarts","got":"whatever the last restart happened to give","line":4,"cause":"<b>It overwrites instead of comparing.<\/b> Every pass throws away what came before, so the answer is just the final climb &mdash; and all those other runs were for nothing. You need <code>if value &gt; best:<\/code> before assigning. The result still looks plausible, which is what makes this one dangerous."}]},{"session":2,"id":"B3","short":"Annealing","title":"Allowing a step downhill","cards":[{"kind":"idea","tag":"PYTHON","title":"Sometimes accept a worse plan","points":["Hill climbing refuses to ever go down. That is exactly what traps it.","<b>Simulated annealing changes one line:<\/b> a worse plan is sometimes accepted anyway.","How often depends on <b>how much worse<\/b> it is, and on a number called the <b>temperature<\/b>.","The temperature starts high and falls. So the search wanders early and settles later &mdash; and by the end it <i>is<\/i> hill climbing again."],"formulas":[["P(accept a worse move)","exp(delta / T)"],["delta","how much worse, a negative number"],["T","the temperature, falling"]],"fhead":["idea","in Python"],"note":"<b>The name comes from metal.<\/b> Cool steel too fast and it sets with flaws locked in; cool it slowly and the atoms have time to settle properly. The analogy is where the name comes from, and nothing more &mdash; the algorithm stands on its own."},{"kind":"live","mode":"anneal","title":"The acceptance rule, hot and cold","tasks":["Set the move to <b>4 points worse<\/b> and T to <b>10<\/b>. What is the probability? (This is exercise 2.3.)","Hold the move at 6 points worse and drag T down to 1. What has the algorithm become?","Drag T up to 100. Is the search still searching, or just wandering?"]},{"kind":"error","code":"T = 0\ndelta = -4\n\np = math.exp(delta / T)","etype":"ZeroDivisionError","msg":"float division by zero","line":4,"cause":"<b>The temperature can approach zero but must never reach it.<\/b> Geometric cooling, <code>T = T * alpha<\/code> with <code>alpha<\/code> just under 1, never gets there &mdash; which is exactly why it is written that way instead of subtracting a fixed amount each step."},{"kind":"predict","question":"Same twenty starting plans, both algorithms. What does the comparison look like?","code":"hill climbing   mean 141.8   reached 149:  0 of 300\nannealing       mean 148.5   reached 149: 49%","options":["annealing is slightly better","annealing is much better and always wins","annealing is better on average","annealing is worse but faster"],"answer":2,"output":"","explain":"<b>Better on average is the honest claim.<\/b> Annealing averaged 148.5 against 141.8, and found the best plan about half the time &mdash; but its own worst run was 147, not 149. It is a stochastic algorithm: it has good days and bad days, which is precisely why you must run it more than once before believing anything."},{"kind":"live","mode":"race","title":"Both algorithms, the same starting plan","tasks":["Press <b>Step both<\/b> a few times. Which one stops first, and after how many evaluations?","Press <b>Spend the whole budget<\/b>. Both have now had 600 evaluations. Who is ahead?","Look at <b>worse moves taken<\/b>. Annealing climbed down that many times on purpose.","Press <b>Ten times the budget<\/b>. <b>Hill climbing does not move. Why not?<\/b>","Press <b>New start<\/b> and do it again. <b>Does annealing win every single time?<\/b>"]},{"kind":"table","title":"The two algorithms, side by side","rows":[["accepts only better plans","accepts better plans, and sometimes worse ones"],["tries all twenty neighbours, takes the best","tries one neighbour at random"],["the last plan is the best plan","keeps a separate best, because current can get worse"],["no parameters","starting temperature, cooling rate, number of steps"],["mean 141.8, never reached 149","mean 148.5, reached 149 about half the time"],["stops by itself","runs until the step budget is gone"]],"heads":["hill climbing","simulated annealing"],"note":"<b>Four of those six rows are the price of the fifth.<\/b> Annealing is better on average and it costs you three parameters, a longer run, and a result that changes from run to run."}]},{"session":2,"id":"B4","short":"Back to the round","title":"The same fix, on the other problem","cards":[{"kind":"idea","tag":"IDEA","title":"Nothing about the algorithm changes","points":["The round of ten stops has the same trouble: hill climbing stops at a round that no single move improves.","With the <b>swap<\/b> move it finds the shortest round 41% of the time. With <b>reverse<\/b>, 76%.","<b>Annealing does not care which problem it is on.<\/b> Propose a change, score it, accept it with probability <code>exp(delta/T)<\/code>, cool down.","That is the point of a <i>meta<\/i>-heuristic: the search strategy is reusable, and only the three problem parts are rewritten."],"note":"<b>Watch the picture, not the number.<\/b> On the round you can see the search untangle a crossing, which is the same thing the knapsack search was doing invisibly."},{"kind":"live","mode":"tsp","anneal":true,"title":"Anneal the round","tasks":["Press <b>Random round<\/b>, then <b>Best reverse<\/b> until it is stuck. Write the length down.","Now press <b>Anneal it<\/b>. <b>How many longer rounds did it accept on the way?<\/b>","Do that three times from three random rounds. Does annealing reach 630 m every time?"]},{"kind":"predict","question":"Which of these would make the biggest difference to how good an answer you get?","code":"a. run hill climbing 10 times instead of once\nb. change the move from swap to reverse\nc. buy a computer twice as fast","options":["a","b","c","they are about equal"],"answer":1,"output":"swap 41%   reverse 76%","explain":"<b>Changing the move nearly doubled the success rate, for free.<\/b> Ten restarts helps less than that, and a faster computer helps not at all &mdash; hill climbing stops because it is stuck, not because it ran out of time. <b>Design beats hardware.<\/b>"}]},{"session":2,"id":"B5","short":"Your turn","title":"Your turn, and what is examinable","cards":[{"kind":"yourturn","minutes":12,"notebook":"week11_session2_annealing.ipynb","sub":"In Colab, in <code>week11_session2_annealing.ipynb<\/code>. <b>Start now and finish at home.<\/b> The first code cell gives you last session's functions, so nobody is blocked. <b>2.5 is the one that matters<\/b>; 2.7 is the star.","chat":"Get to 2.4 before you leave. In 2.7 one of the four cooling rates is much worse than the rest — work out which before you run it."},{"kind":"table","title":"What is examinable from Session 2","rows":[["A <code>for<\/code> loop that keeps a running best","The physics of annealing"],["<code>if<\/code> with two conditions joined by <code>or<\/code>","Why exp() is the right curve"],["Calling a function you wrote from inside another","Proving convergence"],["Comparing two lists of results","The value 0.9999"],["Reading a <code>ZeroDivisionError<\/code>","Which algorithm is best in general"],["Knowing why one run proves nothing",""]],"note":"<b>Next week:<\/b> instead of improving one plan, keep a whole population of them and let the good ones combine."}]}],"summary":[["plan = [1, 0, 1, ...]","one candidate answer, as 0s and 1s"],["plan_value(plan)","the objective: one number saying how good it is"],["flip(plan, i)","one move: change your mind about job i"],["best_neighbour(plan)","the best of the twenty plans one change away"],["hill_climb(start)","keep taking the best change; stop when none helps"],["is_local_optimum(plan)","True when no single change improves it"],["multistart(k, seed)","climb k times, keep the best"],["accept(delta, T, rng)","better always; worse with probability exp(delta/T)"],["T = T * alpha","cooling: explore early, settle later"]],"summary_title":"Week 11: everything you wrote","summary_heads":["you wrote","what it does"],"summary_note":"<b>Nine functions, and not one new piece of Python.<\/b> Loops, <code>if<\/code>, functions and lists &mdash; all of it was already yours. What was new this week is the <i>shape<\/i>: propose a change, score it, decide whether to take it, repeat. <b>To revise:<\/b> run both notebooks again from a blank page, and make sure you can say in one sentence why hill climbing stops."};</script>
+<script>const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function store(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v);}catch(e){ return null; } }
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
+
+/* ---------------- theme ---------------- */
+(function(){
+  const root=document.documentElement, b=$("#themeBtn"), modes=["auto","light","dark"];
+  let m=store("ine315-w9-theme")||"auto";
+  const apply=()=>{ if(m==="auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme",m); b.textContent="Theme: "+m; };
+  apply(); b.onclick=()=>{ m=modes[(modes.indexOf(m)+1)%3]; store("ine315-w9-theme",m); apply(); };
+})();
+
+/* ---------------- Python highlighter ---------------- */
+const KW=new Set("def class return if elif else for in while and or not True False None import from as pass break continue try except print".split(" "));
+const BI=new Set("len range min max sum int float str list dict type enumerate sorted round abs all any zip bool".split(" "));
+function hl(line){
+  let out=""; const re=/(#.*$)|(f?"(?:[^"\\]|\\.)*"|f?'(?:[^'\\]|\\.)*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|(.)/g; let m;
+  while((m=re.exec(line))){
+    if(m[1]) out+=`<span class="tk-com">${esc(m[1])}</span>`;
+    else if(m[2]) out+=`<span class="tk-str">${esc(m[2])}</span>`;
+    else if(m[3]) out+=`<span class="tk-num">${m[3]}</span>`;
+    else if(m[4]){ const w=m[4]; out+= KW.has(w)?`<span class="tk-kw">${w}</span>`: BI.has(w)?`<span class="tk-fn">${w}</span>`: w; }
+    else out+=esc(m[0]);
+  }
+  return out;
+}
+function codeHTML(src,opts={}){
+  return `<pre class="code ${opts.big?"big":""}">`+src.split("\n").map((l,i)=>
+    `<span class="ln ${opts.click?"click":""}" data-l="${i+1}"><span class="no">${i+1}</span>${hl(l)||" "}</span>`).join("")+`</pre>`;
+}
+
+/* ---------------- timer ---------------- */
+const TIMER={left:0,id:null,paused:false};
+function startTimer(min){ const t=$("#timer"); TIMER.left=min*60; TIMER.paused=false; t.classList.add("on"); t.classList.remove("up"); clearInterval(TIMER.id); tick();
+  TIMER.id=setInterval(()=>{ if(TIMER.paused) return; TIMER.left--; tick(); if(TIMER.left<=0){ clearInterval(TIMER.id); t.textContent="Time!"; t.classList.add("up"); } },1000); }
+function tick(){ const m=Math.floor(TIMER.left/60), s=TIMER.left%60; $("#timer").textContent=`${m}:${String(s).padStart(2,"0")}${TIMER.paused?" ||":""}`; }
+$("#timer").onclick=()=>{ if(TIMER.left>0){ TIMER.paused=!TIMER.paused; tick(); } };
+$("#timer").ondblclick=()=>{ clearInterval(TIMER.id); $("#timer").classList.remove("on","up"); };
+
+/* ---------------- diagrams ---------------- */
+const DIAG={
+  loop:()=>{
+    const W=640,H=150;
+    let s=`<svg class="dg" viewBox="0 0 ${W} ${H}"><defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--ink-3)"/></marker></defs>`;
+    const boxes=[["Read","buttons, sensors, messages",20,"b2"],["Decide","if / elif",180,"acc"],["Write","motor, lamp, message",340,"b2"],["Wait","time.sleep",500,""]];
+    boxes.forEach(([t,sub,x,cls])=>{
+      s+=`<rect class="bx ${cls}" x="${x}" y="40" width="120" height="52" rx="12"/>`+
+         `<text class="tx" x="${x+60}" y="63" text-anchor="middle">${t}</text>`+
+         `<text class="sm" x="${x+60}" y="81" text-anchor="middle">${sub}</text>`;
+    });
+    [[140,180],[300,340],[460,500]].forEach(([a,b])=>{ s+=`<path class="ar" d="M${a},66 L${b-6},66"/>`; });
+    s+=`<path class="ar" d="M560,92 L560,120 L80,120 L80,92"/><text class="sm" x="320" y="136" text-anchor="middle">and again, forever</text></svg>`;
+    return s;
+  },
+  net:()=>{
+    const W=640,H=190;
+    let s=`<svg class="dg" viewBox="0 0 ${W} ${H}"><defs><marker id="ah2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--ink-3)"/></marker></defs>`;
+    s+=`<rect class="bx acc" x="10" y="70" width="150" height="56" rx="12"/><text class="tx" x="85" y="94" text-anchor="middle">your laptop</text><text class="sm" x="85" y="112" text-anchor="middle">client.publish(...)</text>`;
+    s+=`<rect class="bx" x="240" y="70" width="160" height="56" rx="12"/><text class="tx" x="320" y="94" text-anchor="middle">the broker</text><text class="sm" x="320" y="112" text-anchor="middle">test.mosquitto.org</text>`;
+    s+=`<rect class="bx b2" x="470" y="14" width="160" height="50" rx="12"/><text class="tx" x="550" y="35" text-anchor="middle">the projector</text><text class="sm" x="550" y="52" text-anchor="middle">subscribed</text>`;
+    s+=`<rect class="bx b2" x="470" y="78" width="160" height="50" rx="12"/><text class="tx" x="550" y="99" text-anchor="middle">a dashboard</text><text class="sm" x="550" y="116" text-anchor="middle">subscribed</text>`;
+    s+=`<rect class="bx b2" x="470" y="142" width="160" height="40" rx="12"/><text class="tx" x="550" y="167" text-anchor="middle">a database</text>`;
+    s+=`<path class="ar" style="marker-end:url(#ah2)" d="M160,98 L234,98"/><text class="sm" x="197" y="88" text-anchor="middle">topic + text</text>`;
+    [39,103,162].forEach(y=>{ s+=`<path class="ar" style="marker-end:url(#ah2)" d="M400,98 C435,98 435,${y} 464,${y}"/>`; });
+    s+=`</svg>`;
+    return s;
+  }
+};
+
+/* ---------------- card list ---------------- */
+const CARDS=[];
+const LABEL={idea:"The idea",predict:"Predict",trace:"Step through",puzzle:"Fix the indentation",demo:"Watch me type",bug:"Find the bug",
+  error:"Read the error",live:"Play with it",classify:"Sort them",yourturn:"Your turn",table:"Reference"};
+const PILL={welcome:["WEEK 11","gray"],session:["SESSION","gray"],idea:["IDEA",""],predict:["PREDICT","blue"],trace:["STEP THROUGH","blue"],
+  puzzle:["FIX THE INDENT","blue"],classify:["SORT THEM","blue"],demo:["WATCH ME TYPE","gray"],bug:["FIND THE BUG","blue"],
+  error:["READ THE ERROR","blue"],live:["PLAY WITH IT","blue"],yourturn:["YOUR TURN · COLAB","green"],table:["REFERENCE","gray"],summary:["SUMMARY","gray"]};
+CARDS.push({type:"welcome",block:null,session:0,label:"Week 11"});
+[1,2].forEach(s=>{
+  CARDS.push({type:"session",block:null,session:s,label:`Session ${s} starts`});
+  DATA.blocks.filter(b=>b.session===s).forEach(b=>b.cards.forEach(c=>CARDS.push({type:c.kind,block:b,session:s,c,label:LABEL[c.kind]})));
+});
+CARDS.push({type:"summary",block:null,session:2,label:"Week 11 summary"});
+
+let cur=0, ctl=null;
+function head(card,title,sub){
+  const [p,col]=PILL[card.type], b=card.block;
+  return `<div class="ctype"><span class="pill ${col}">${p}</span>${b?`Session ${b.session} · ${esc(b.title)}`:""}</div>`+
+    (title?`<h2>${title}</h2>`:"")+(sub?`<p class="lead">${sub}</p>`:"");
+}
+
+/* ---------------- renderers ---------------- */
+const R={};
+R.welcome=(e)=>{
+  const W=DATA.week, S=DATA.sessions;
+  e.innerHTML=`<div class="ctype"><span class="pill gray">WEEK ${W.n}</span>INE 315 · Programming Applications for IE</div>
+  <h1>${W.title}</h1><p class="lead">${W.lead}</p>
+  <div class="two">
+    <div class="recap"><span class="banner">Session 1</span><h3>${S[1].title}</h3><p style="margin:4px 0 0">${S[1].goal}</p></div>
+    <div class="recap"><span class="banner s2">Session 2</span><h3>${S[2].title}</h3><p style="margin:4px 0 0">${S[2].goal}</p></div>
+  </div>
+  <div class="rhythm">
+    <div class="rh"><div class="k">1</div><div class="t">Idea</div><div class="d">One idea; rules are given.</div></div>
+    <div class="rh"><div class="k">2</div><div class="t">Predict</div><div class="d">Guess the output. A–D out loud.</div></div>
+    <div class="rh"><div class="k">3</div><div class="t">Watch</div><div class="d">A short demo, then play with it.</div></div>
+    <div class="rh"><div class="k">4</div><div class="t">You do</div><div class="d">Exercises in Colab, with a checker.</div></div>
+    <div class="rh"><div class="k">5</div><div class="t">Check</div><div class="d">Answers, and the usual mistake.</div></div>
+  </div>
+  <p class="hint">Use <kbd>&rarr;</kbd> and <kbd>&larr;</kbd> to move. On a card with steps, <kbd>&rarr;</kbd> first reveals the next step. The chips at the top jump to any part.</p>`;
+};
+R.session=(e,card)=>{
+  const s=card.session, S=DATA.sessions[s];
+  e.classList.add("session");
+  e.innerHTML=`<div><span class="banner ${s===2?"s2":""}">Session ${s} starts here</span>
+    <h1>${S.title}</h1><p class="lead">${S.goal}</p>
+    <div class="recap">${S.recap}</div>
+    <div class="two"><div><h3>Only two new things today</h3><div class="demolist">${S.two.map((t,i)=>`<div><b>${i+1}.</b> ${t}</div>`).join("")}</div></div>
+    <div><h3>Today's two demos</h3><div class="demolist">${S.demos.map(d=>`<div>${d}</div>`).join("")}</div>
+    <p class="hint">Notebook: <code>${S.notebooks[0]}</code> — open it before we start.</p></div></div></div>`;
+};
+R.idea=(e,card)=>{
+  const c=card.c;
+  e.innerHTML=head(card,esc(c.title)+(c.tag?`<span class="tag ${c.tag}">${c.tag}</span>`:""))+
+   `<div class="two wide-left"><div><ul class="points">${c.points.map(p=>`<li>${p}</li>`).join("")}</ul>${c.note?`<div class="notebox">${c.note}</div>`:""}</div>
+    <div>${c.formulas?`<table class="ftab"><tr><th>${(c.fhead||["given","Python"])[0]}</th><th>${(c.fhead||["given","Python"])[1]}</th></tr>
+      ${c.formulas.map(([f,p])=>`<tr><td>${f}</td><td>${esc(p)}</td></tr>`).join("")}</table>`:""}
+    ${c.code?codeHTML(c.code):""}</div></div>${c.visual?`<div class="vis" style="margin-top:16px">${DIAG[c.visual]()}</div>`:""}`;
+};
+R.predict=(e,card)=>{
+  const p=card.c;
+  e.innerHTML=head(card,p.question)+`<div class="two">
+    <div>${codeHTML(p.code,{big:true})}<p class="ask">Say <b>A, B, C or D</b> out loud. Then press <kbd>&rarr;</kbd> to reveal.</p></div>
+    <div><div class="opts">${p.options.map((o,i)=>`<button class="opt" data-i="${i}"><span class="l">${"ABCD"[i]}</span><pre>${esc(o)}</pre></button>`).join("")}</div>
+      <div class="reveal" id="pv"><div class="cap">Python printed</div><pre class="out">${esc(p.output)}</pre><div class="notebox">${p.explain}</div></div></div></div>`;
+  let shown=false;
+  const show=()=>{ shown=true; e.querySelectorAll(".opt").forEach(b=>{ const i=+b.dataset.i; b.classList.toggle("right",i===p.answer); b.classList.toggle("dim",i!==p.answer); }); $("#pv").classList.add("show"); };
+  e.querySelectorAll(".opt").forEach(b=>b.onclick=show);
+  return {advance(){ if(!shown){ show(); return true; } return false; }};
+};
+function varsTable(vars,prev){
+  const keys=Object.keys(vars||{});
+  if(!keys.length) return `<div style="padding:6px 8px" class="stepinfo">(nothing yet)</div>`;
+  return `<table class="vars">`+keys.map(k=>{ const ch=prev&&JSON.stringify(prev[k])!==JSON.stringify(vars[k]);
+    return `<tr class="${ch?"chg":""}"><td>${esc(k)}</td><td>${esc(vars[k])}</td></tr>`; }).join("")+`</table>`;
+}
+R.trace=(e,card)=>{
+  const T=card.c; let i=-1;
+  e.innerHTML=head(card,esc(T.title))+
+   `<div class="two"><div>${codeHTML(T.code,{big:true})}
+     <div class="row" style="margin-top:10px"><button class="btn sm" id="tb">&larr; Step back</button><button class="btn sm primary" id="tn">Step &rarr;</button><button class="btn sm" id="tr">Restart</button><span class="stepinfo" id="ti"></span></div>
+     <p class="stepinfo" style="margin-top:8px">The highlighted line has <b>just run</b>.</p></div>
+    <div><div class="note" id="tnote"></div><div class="cap">Variables</div><div id="tvars"></div><div class="cap">Output</div><pre class="out" id="tout"></pre></div></div>`;
+  const draw=()=>{
+    const S=T.steps, s=S[i], p=S[i-1];
+    e.querySelectorAll(".code .ln").forEach(l=>l.classList.toggle("cur",!!s&&+l.dataset.l===s.line));
+    $("#ti").textContent=`step ${i+1} of ${S.length}`;
+    const o=$("#tout");
+    if(!s){ $("#tnote").innerHTML="Press <b>Step &rarr;</b> to run the first line."; $("#tvars").innerHTML=`<div class="frame"><div class="fh">Main program</div>${varsTable({},null)}</div>`;
+      o.className="out empty"; o.textContent="(nothing printed yet)"; return; }
+    $("#tnote").innerHTML=s.note||"&nbsp;";
+    let h=`<div class="frame"><div class="fh">Main program</div>${varsTable(s.g,p?p.g:null)}</div>`;
+    if(s.fn) h+=`<div class="frame"><div class="fh">Inside ${esc(s.fn)}()</div>${varsTable(s.loc,p&&p.fn===s.fn?p.loc:null)}</div>`;
+    $("#tvars").innerHTML=h;
+    if(s.out){ o.className="out"; o.textContent=s.out.replace(/\n$/,""); } else { o.className="out empty"; o.textContent="(nothing printed yet)"; }
+  };
+  const step=d=>{ const j=i+d; if(j<-1||j>=T.steps.length) return false; i=j; draw(); return true; };
+  $("#tn").onclick=()=>step(1); $("#tb").onclick=()=>step(-1); $("#tr").onclick=()=>{ i=-1; draw(); };
+  draw();
+  return {advance(){ return step(1); }, back(){ return step(-1); }};
+};
+R.puzzle=(e,card)=>{
+  const P=card.c, lv=P.lines.map(()=>0);
+  e.innerHTML=head(card,"Put each line at the right indentation",P.task)+`<div class="pz" id="pz"></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="pc">Check</button><button class="btn" id="pa">Show the answer</button><button class="btn" id="pr">Reset</button></div><div class="fb" id="pf"></div>
+    <p class="stepinfo" style="margin-top:10px">Each <b>&rarr;</b> adds 4 spaces.</p>`;
+  const draw=(res)=>{ $("#pz").innerHTML=P.lines.map((l,i)=>`<div class="pzl ${res?(res[i]?"ok":"no"):""}"><div class="ctl"><button data-i="${i}" data-d="-1">&larr;</button><button data-i="${i}" data-d="1">&rarr;</button></div><div class="txt">${"    ".repeat(lv[i])}${hl(l)}</div><span class="mark">${res?(res[i]?"✓":"✗"):""}</span></div>`).join("");
+    $("#pz").querySelectorAll("button").forEach(b=>b.onclick=()=>{ const i=+b.dataset.i; lv[i]=Math.max(0,Math.min(3,lv[i]+ +b.dataset.d)); $("#pf").textContent=""; draw(); }); };
+  $("#pc").onclick=()=>{ const res=lv.map((x,i)=>x===P.levels[i]); draw(res); const n=res.filter(x=>x).length;
+    $("#pf").innerHTML= n===res.length?"<b style='color:var(--ok)'>All correct.</b> The indentation now says exactly which lines belong to the loop.":`<b style="color:var(--bad)">${res.length-n} line${res.length-n>1?"s":""} not right yet.</b> Ask: which line ending in a colon does this line belong to?`; };
+  $("#pa").onclick=()=>{ P.levels.forEach((x,i)=>lv[i]=x); draw(P.levels.map(()=>true)); $("#pf").textContent="The answer."; };
+  $("#pr").onclick=()=>{ lv.fill(0); $("#pf").textContent=""; draw(); };
+  draw();
+};
+function clickLine(e,answer,onPick){
+  let done=false;
+  const pick=l=>{ if(done) return; done=true;
+    e.querySelectorAll(".code .ln").forEach(x=>{ const n=+x.dataset.l; if(n===answer) x.classList.add("right"); else if(n===l) x.classList.add("wrong"); }); onPick(l); };
+  e.querySelectorAll(".code .ln").forEach(x=>x.onclick=()=>pick(+x.dataset.l));
+  return {advance(){ if(!done){ pick(0); return true; } return false; }};
+}
+R.error=(e,card)=>{
+  const E=card.c;
+  e.innerHTML=head(card,"Which line does Python point to?","Click the line. The error names the line where Python <i>noticed</i> the problem.")+
+   `<div class="two"><div>${codeHTML(E.code,{big:true,click:true})}<div class="errline"><b>${esc(E.etype)}</b>: ${esc(E.msg)}</div></div>
+    <div><div class="reveal" id="er"><div class="fb" id="ef"></div><div class="cause">${E.cause}</div></div></div></div>`;
+  return clickLine(e,E.line,l=>{ $("#ef").innerHTML= l===E.line?`<b style="color:var(--ok)">Yes, line ${E.line}.</b>`: l?`<b style="color:var(--bad)">Python points at line ${E.line}.</b>`:`Python points at <b>line ${E.line}</b>.`; $("#er").classList.add("show"); });
+};
+R.bug=(e,card)=>{
+  const B=card.c;
+  e.innerHTML=head(card,esc(B.title),"<b>No error message.</b> The code runs, but the answer is wrong. Click the line that causes it.")+
+   `<div class="two"><div>${codeHTML(B.code,{big:true,click:true})}
+     <div class="exp"><div class="box want"><span class="k">we wanted</span>${esc(B.expected)}</div><div class="box got"><span class="k">Python printed</span>${esc(B.got)}</div></div></div>
+    <div><div class="reveal" id="er"><div class="fb" id="ef"></div><div class="cause">${B.cause}</div></div></div></div>`;
+  return clickLine(e,B.line,l=>{ $("#ef").innerHTML= l===B.line?`<b style="color:var(--ok)">Yes, line ${B.line}.</b>`: l?`<b style="color:var(--bad)">The cause is line ${B.line}.</b>`:`The cause is <b>line ${B.line}</b>.`; $("#er").classList.add("show"); });
+};
+R.demo=(e,card)=>{
+  const D=card.c, b=card.block, nb=DATA.sessions[card.session].notebooks[0];
+  e.innerHTML=head(card,esc(D.title),`Watch it being typed. Then run it yourself in <code>${nb}</code>.`)+
+   `<div class="two wide-left"><div>${codeHTML(D.code)}
+     ${D.output!==undefined?`<div class="row" style="margin-top:10px"><button class="btn primary" id="runb">&#9654; Run</button><span class="hint">or press <kbd>&rarr;</kbd></span></div>
+      <div class="reveal" id="ro"><div class="cap">Output</div><pre class="out">${esc(D.output)}</pre></div>`:`<p class="hint">${D.hint||"Run it in Colab to see the output."}</p>`}</div>
+    <div><ul class="points">${D.points.map(p=>`<li>${p}</li>`).join("")}</ul></div></div>`;
+  if(D.output===undefined) return {};
+  let shown=false; const show=()=>{ shown=true; $("#ro").classList.add("show"); $("#runb").disabled=true; };
+  $("#runb").onclick=show;
+  return {advance(){ if(!shown){ show(); return true; } return false; }};
+};
+R.classify=(e,card)=>{
+  const C=card.c, pick=C.items.map(()=>-1); let checked=false;
+  e.innerHTML=head(card,esc(C.title),C.task)+
+   `<div class="cls">${C.items.map((it,i)=>`<div class="clrow" id="cl${i}"><div class="cli"><code>${esc(it)}</code></div>
+      <div class="clb">${C.bins.map((b,j)=>`<button class="binb" data-i="${i}" data-j="${j}">${b}</button>`).join("")}</div><span class="mark" id="cm${i}"></span></div>`).join("")}</div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="ck">Check</button><button class="btn" id="sa">Show the answer</button><button class="btn" id="rs2">Reset</button></div>
+    <div class="fb" id="fb"></div><div class="reveal" id="af"><div class="notebox">${C.after}</div></div>`;
+  const paint=()=>{ C.items.forEach((_,i)=>{ e.querySelectorAll(`.binb[data-i="${i}"]`).forEach(b=>b.classList.toggle("on",+b.dataset.j===pick[i]));
+    const ok=pick[i]===C.answers[i]; $("#cl"+i).classList.toggle("ok",checked&&ok); $("#cl"+i).classList.toggle("no",checked&&pick[i]>=0&&!ok);
+    $("#cm"+i).textContent=checked?(ok?"✓":(pick[i]<0?"?":"✗")):""; }); };
+  e.querySelectorAll(".binb").forEach(b=>b.onclick=()=>{ pick[+b.dataset.i]=+b.dataset.j; checked=false; $("#fb").textContent=""; paint(); });
+  const done=()=>{ checked=true; paint(); const n=C.items.filter((_,i)=>pick[i]===C.answers[i]).length;
+    $("#fb").innerHTML= n===C.items.length?`<b style="color:var(--ok)">All ${n} right.</b>`:`<b style="color:var(--bad)">${n} of ${C.items.length} right.</b> Look again at the ones marked &#10007;.`;
+    if(n===C.items.length) $("#af").classList.add("show"); };
+  $("#ck").onclick=done;
+  $("#sa").onclick=()=>{ C.answers.forEach((a,i)=>pick[i]=a); checked=true; paint(); $("#fb").textContent="The answer."; $("#af").classList.add("show"); };
+  $("#rs2").onclick=()=>{ pick.fill(-1); checked=false; $("#fb").textContent=""; $("#af").classList.remove("show"); paint(); };
+  paint();
+  return {advance(){ if(!checked){ done(); return true; } if(!$("#af").classList.contains("show")){ $("#af").classList.add("show"); return true; } return false; }};
+};
+R.yourturn=(e,card)=>{
+  const c=card.c, X=DATA.exercises[c.notebook]||[], m=c.minutes||12;
+  e.innerHTML=head(card,`Your turn: exercises ${X.length?X[0].id+"–"+X[X.length-1].id:""}`,c.sub)+
+   `<div class="exlist">${X.map(x=>`<div class="ex"><div class="h"><span class="id">${x.id}</span><span class="kind">${esc(x.kind)}</span><b>${esc(x.title)}</b>${x.star?`<span class="star">&#9733; extra</span>`:""}</div><div class="task">${x.task}</div></div>`).join("")}</div>
+   <div class="chatbar"><span>${c.chat}</span><span style="flex:1"></span><button class="btn blue" id="tm">Start ${m}-minute timer</button></div>`;
+  $("#tm").onclick=()=>startTimer(m);
+};
+R.table=(e,card)=>{
+  const T=card.c;
+  e.innerHTML=head(card,esc(T.title))+`<table class="etab"><thead><tr><th>${(T.heads||["Examinable · Python","Not examinable · given"])[0]}</th><th>${(T.heads||["Examinable · Python","Not examinable · given"])[1]}</th></tr></thead>
+   <tbody>${T.rows.map(([a,b])=>`<tr><td style="color:inherit;font-weight:500">${a}</td><td>${b}</td></tr>`).join("")}</tbody></table>
+   <div class="chatbar" style="margin-top:18px"><span>${T.note}</span></div>`;
+};
+R.summary=(e,card)=>{
+  e.innerHTML=head(card,DATA.summary_title)+`<table class="sum"><thead><tr>${DATA.summary_heads.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+   <tbody>${DATA.summary.map(r=>`<tr>${r.map(x=>`<td>${esc(x)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+   <div class="chatbar" style="margin-top:18px"><span>${DATA.summary_note}</span></div>`;
+};
+
+/* ---------------- live cards ---------------- */
+/* Week 11 live widgets. All three use the real instance, so every number
+   on screen is the same number the notebook prints. */
+
+const W11 = {
+  NAMES: ["Replace conveyor belt","Bearing change, line 2","Recalibrate scale A",
+    "Hydraulic hose set","Rewire panel 3","Service air compressor","Guard rail repair",
+    "Replace drive motor","Coolant pump overhaul","Sensor array swap","Gearbox oil and seals",
+    "Filter bank renewal","Weld cracked bracket","Replace limit switches","Align main shaft",
+    "Chain and sprocket set","Vacuum line rebuild","Control board firmware",
+    "Pallet lift service","Dust extraction clean"],
+  HOURS: [11,7,2,6,13,4,3,14,8,5,9,3,2,4,10,6,12,1,7,5],
+  RISK:  [40,26,9,21,44,15,12,49,28,17,31,11,8,14,35,20,41,4,24,16],
+  CAP: 40, PEN: 6, OPT: 149
+};
+
+function w11hours(p){ let h=0; for(let i=0;i<20;i++) if(p[i]) h+=W11.HOURS[i]; return h; }
+function w11risk(p){ let r=0; for(let i=0;i<20;i++) if(p[i]) r+=W11.RISK[i]; return r; }
+function w11value(p){
+  const h=w11hours(p), r=w11risk(p);
+  return h<=W11.CAP ? r : r - W11.PEN*(h-W11.CAP);
+}
+function w11flip(p,i){ const q=p.slice(); q[i]=1-q[i]; return q; }
+function w11best(p){
+  let bp=null, bv=-1e9;
+  for(let i=0;i<20;i++){ const q=w11flip(p,i), v=w11value(q); if(v>bv){ bp=q; bv=v; } }
+  return [bp,bv];
+}
+function w11randomPlan(seed){
+  // a tiny deterministic generator, so the page is reproducible
+  let s = seed>>>0 || 1;
+  const p=[];
+  for(let i=0;i<20;i++){ s=(s*1664525+1013904223)>>>0; p.push((s>>>16)&1); }
+  return p;
+}
+
+/* ---------- the shared plan table ---------- */
+function w11planTable(plan, onToggle, highlight){
+  const rows = W11.NAMES.map((n,i)=>{
+    const on = plan[i]===1;
+    const hi = highlight===i ? " hi" : "";
+    return `<tr class="${on?"on":""}${hi}" data-i="${i}">
+      <td class="tick">${on?"&#10003;":""}</td><td class="nm">${n}</td>
+      <td class="num">${W11.HOURS[i]}</td><td class="num">${W11.RISK[i]}</td></tr>`;
+  }).join("");
+  return `<table class="plantab"><thead><tr><th></th><th>job</th><th>hours</th><th>risk</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+function w11readout(plan){
+  const h=w11hours(plan), r=w11risk(plan), v=w11value(plan), over=h>W11.CAP;
+  const pct = Math.min(100, h/W11.CAP*100);
+  return `<div class="ro">
+    <div class="bar ${over?"over":""}"><i style="width:${pct}%"></i></div>
+    <div class="rorow"><span>hours</span><b class="${over?"bad":""}">${h} of ${W11.CAP}</b></div>
+    <div class="rorow"><span>risk removed</span><b>${r}</b></div>
+    ${over?`<div class="rorow"><span>penalty, ${W11.PEN} per hour over</span><b class="bad">&minus;${(W11.PEN*(h-W11.CAP)).toFixed(0)}</b></div>`:""}
+    <div class="rorow big"><span>value</span><b>${v.toFixed(0)}</b></div>
+    <div class="rorow"><span>best possible</span><b>${W11.OPT}</b></div>
+  </div>`;
+}
+
+/* =================== mode: plan  =================== */
+function w11plan(L, box){
+  let plan = w11randomPlan(3);
+  const draw = () => {
+    box.innerHTML = `<div class="two wide-left">
+      <div>${w11planTable(plan)}</div>
+      <div>${w11readout(plan)}
+        <div class="row" style="margin-top:12px">
+          <button class="btn sm" id="w11clear">Nothing</button>
+          <button class="btn sm" id="w11all">Everything</button>
+          <button class="btn sm" id="w11rnd">Random plan</button>
+        </div>
+        <p class="hint" style="margin-top:10px">Click a row to change your mind about that job.</p>
+      </div></div>`;
+    box.querySelectorAll(".plantab tbody tr").forEach(tr=>{
+      tr.onclick = () => { plan = w11flip(plan, +tr.dataset.i); draw(); };
+    });
+    box.querySelector("#w11clear").onclick = ()=>{ plan = new Array(20).fill(0); draw(); };
+    box.querySelector("#w11all").onclick   = ()=>{ plan = new Array(20).fill(1); draw(); };
+    let s = 7;
+    box.querySelector("#w11rnd").onclick   = ()=>{ plan = w11randomPlan(s+=11); draw(); };
+  };
+  draw();
+}
+
+/* =================== mode: climb  =================== */
+function w11climb(L, box){
+  let plan = w11randomPlan(3), steps = 0, stuck = false, startValue = w11value(plan);
+  const draw = () => {
+    const [bp,bv] = w11best(plan);
+    const v = w11value(plan);
+    stuck = bv <= v;
+    let which = -1;
+    for(let i=0;i<20;i++) if(bp[i]!==plan[i]) which = i;
+    box.innerHTML = `<div class="two wide-left">
+      <div>${w11planTable(plan, null, stuck?-1:which)}</div>
+      <div>${w11readout(plan)}
+      <div class="climbbox ${stuck?"stuck":""}">
+        ${stuck
+          ? `<b>Stuck.</b> Not one of the twenty changes makes this plan better. Hill climbing stops here, at <b>${v.toFixed(0)}</b>, which is <b>${(W11.OPT-v).toFixed(0)} short</b> of the best possible.`
+          : `The best single change is <b>${W11.NAMES[which]}</b> ${plan[which]?"<i>out of</i>":"<i>into</i>"} the plan, taking the value from ${v.toFixed(0)} to <b>${bv.toFixed(0)}</b>.`}
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm primary" id="w11step" ${stuck?"disabled":""}>Take the best change</button>
+        <button class="btn sm" id="w11auto" ${stuck?"disabled":""}>Climb to the top</button>
+        <button class="btn sm" id="w11new">New random start</button>
+      </div>
+      <p class="hint" style="margin-top:10px">${steps} improving step${steps===1?"":"s"} so far, from a start worth ${startValue.toFixed(0)}.</p>
+      </div></div>`;
+    const st = box.querySelector("#w11step");
+    if(st) st.onclick = ()=>{ plan = bp; steps++; draw(); };
+    const au = box.querySelector("#w11auto");
+    if(au) au.onclick = ()=>{
+      let guard=0;
+      while(guard++ < 60){
+        const [q,qv] = w11best(plan);
+        if(qv <= w11value(plan)) break;
+        plan = q; steps++;
+      }
+      draw();
+    };
+    let s = 23;
+    box.querySelector("#w11new").onclick = ()=>{
+      plan = w11randomPlan(s+=17); steps = 0; startValue = w11value(plan); draw();
+    };
+  };
+  draw();
+}
+
+/* =================== mode: anneal  =================== */
+function w11anneal(L, box){
+  let delta = -4, T = 10;
+  const draw = () => {
+    const p = delta > 0 ? 1 : Math.exp(delta / T);
+    // 400 draws from a fixed sequence, so the figure is stable between redraws
+    let s = 12345, taken = 0;
+    for(let i=0;i<400;i++){ s=(s*1664525+1013904223)>>>0; if(((s>>>8)/16777216) < p) taken++; }
+    box.innerHTML = `<div class="two">
+      <div>
+        <label class="sl">How much <b>worse</b> is the move?
+          <input type="range" id="w11d" min="0" max="20" step="1" value="${-delta}">
+          <span class="slv">${(-delta)} points worse</span></label>
+        <label class="sl">Temperature <b>T</b>
+          <input type="range" id="w11t" min="1" max="100" step="1" value="${T}">
+          <span class="slv">T = ${T}</span></label>
+        <div class="formula">P(accept) = e<sup>&delta; / T</sup> = e<sup>&minus;${(-delta)} / ${T}</sup> =
+          <b>${(p*100).toFixed(0)}%</b></div>
+        <div class="probbar"><i style="width:${(p*100).toFixed(1)}%"></i></div>
+        <p class="hint">Out of 400 chances, the search would take this worse move about
+          <b>${taken}</b> times.</p>
+      </div>
+      <div>
+        <div class="whybox"><h4>What the two ends mean</h4><ul>
+        <li><b>T large</b> — almost any move is accepted. The search wanders, and can walk out of a trap.</li>
+        <li><b>T small</b> — only improving moves get through. This <b>is</b> hill climbing.</li>
+        <li>Annealing starts at the top and slides to the bottom, so it explores first and settles later.</li>
+        <li>A move that is <b>better</b> is always accepted, whatever T is.</li>
+        </ul></div>
+      </div></div>`;
+    box.querySelector("#w11d").oninput = (ev)=>{ delta = -(+ev.target.value); draw(); };
+    box.querySelector("#w11t").oninput = (ev)=>{ T = +ev.target.value; draw(); };
+  };
+  draw();
+}
+
+/* hook the new modes into the existing live renderer */
+const W11MODES = { plan: w11plan, climb: w11climb, anneal: w11anneal };
+/* Week 11, the second set of widgets. */
+
+/* ---------------- the plant round (TSP) ---------------- */
+const T11 = {
+  NAMES:["Workshop","Press 1","Press 2","Oven","Packing","Paint line","Mill A","Mill B","Lathe","Inspection"],
+  XY:[[10,10],[80,25],[140,30],[175,95],[150,160],[95,175],[35,150],[20,85],[95,95],[135,110]],
+  OPT:630.3, NN:760.6
+};
+T11.N = T11.NAMES.length;
+T11.D = T11.XY.map(a => T11.XY.map(b => Math.hypot(a[0]-b[0], a[1]-b[1])));
+
+function t11len(t){ let s=0; for(let k=0;k<t.length;k++) s += T11.D[t[k]][t[(k+1)%t.length]]; return s; }
+function t11swap(t,i,j){ const u=t.slice(); const x=u[i]; u[i]=u[j]; u[j]=x; return u; }
+function t11rev(t,i,j){ if(i>j){const x=i;i=j;j=x;} const u=t.slice();
+  const seg=u.slice(i,j+1).reverse(); for(let k=0;k<seg.length;k++) u[i+k]=seg[k]; return u; }
+function t11bestSwap(t){ let bt=null,bl=t11len(t);
+  for(let i=1;i<t.length;i++) for(let j=i+1;j<t.length;j++){ const u=t11swap(t,i,j), L=t11len(u);
+    if(L<bl-1e-9){ bt=u; bl=L; } } return [bt,bl]; }
+function t11bestRev(t){ let bt=null,bl=t11len(t);
+  for(let i=1;i<t.length;i++) for(let j=i+1;j<t.length;j++){ const u=t11rev(t,i,j), L=t11len(u);
+    if(L<bl-1e-9){ bt=u; bl=L; } } return [bt,bl]; }
+function t11nn(){ const tour=[0]; const left=new Set();
+  for(let i=1;i<T11.N;i++) left.add(i);
+  while(left.size){ const last=tour[tour.length-1]; let best=-1,bd=1e18;
+    left.forEach(k=>{ if(T11.D[last][k]<bd){ bd=T11.D[last][k]; best=k; } });
+    tour.push(best); left.delete(best); }
+  return tour; }
+function t11rand(seed){ let s=seed>>>0||1; const a=[]; for(let i=1;i<T11.N;i++) a.push(i);
+  for(let i=a.length-1;i>0;i--){ s=(s*1664525+1013904223)>>>0; const j=(s>>>8)%(i+1);
+    const x=a[i]; a[i]=a[j]; a[j]=x; } return [0].concat(a); }
+
+function t11svg(tour, mark){
+  const P=18, S=1.9, W=215*S+P*2, H=200*S+P*2;
+  const px=i=>P+T11.XY[i][0]*S, py=i=>P+T11.XY[i][1]*S;
+  let s=`<svg class="dg tspsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="A round of ten stops in a plant, drawn as a closed loop.">`;
+  for(let k=0;k<tour.length;k++){
+    const a=tour[k], b=tour[(k+1)%tour.length];
+    const hot = mark && (mark.includes(a) && mark.includes(b));
+    s+=`<line class="leg${hot?" hot":""}" x1="${px(a)}" y1="${py(a)}" x2="${px(b)}" y2="${py(b)}"/>`;
+  }
+  tour.forEach((i,k)=>{
+    const sel = mark && mark.includes(i);
+    s+=`<circle class="stop${i===0?" home":""}${sel?" sel":""}" data-i="${i}" cx="${px(i)}" cy="${py(i)}" r="${i===0?11:9}"/>`;
+    s+=`<text class="so" x="${px(i)}" y="${py(i)+4}" text-anchor="middle">${k}</text>`;
+    s+=`<text class="sn" x="${px(i)}" y="${py(i)-14}" text-anchor="middle">${T11.NAMES[i]}</text>`;
+  });
+  return s+`</svg>`;
+}
+
+function w11tsp(L, box){
+  const allowAnneal = !!L.anneal;
+  let tour = t11rand(5), picked = [], steps = 0, note = "", log = [];
+  const draw = () => {
+    const len = t11len(tour);
+    const gap = (len - T11.OPT) / T11.OPT * 100;
+    const [, swl] = t11bestSwap(tour);
+    const [, rvl] = t11bestRev(tour);
+    box.innerHTML = `<div class="two wide-left">
+      <div class="figwrap">${t11svg(tour, picked)}</div>
+      <div>
+        <div class="ro">
+          <div class="rorow big"><span>this round</span><b>${len.toFixed(0)} m</b></div>
+          <div class="rorow"><span>shortest possible</span><b>${T11.OPT} m</b></div>
+          <div class="rorow"><span>how far off</span><b class="${gap<0.05?"":"bad"}">${gap<0.05?"this is the best":"+"+gap.toFixed(1)+"%"}</b></div>
+        </div>
+        <div class="climbbox" style="margin-top:10px">${note ||
+          "Click <b>two stops</b> to pick them, then choose a move."}</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn sm" id="t11sw" ${picked.length===2?"":"disabled"}>Swap the two</button>
+          <button class="btn sm" id="t11rv" ${picked.length===2?"":"disabled"}>Reverse between them</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm primary" id="t11bs">Best swap (${swl<len-1e-9?"-"+(len-swl).toFixed(0)+" m":"none helps"})</button>
+          <button class="btn sm primary" id="t11br">Best reverse (${rvl<len-1e-9?"-"+(len-rvl).toFixed(0)+" m":"none helps"})</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm" id="t11nn">Greedy start</button>
+          <button class="btn sm" id="t11rd">Random round</button>
+          ${allowAnneal?`<button class="btn sm" id="t11an">Anneal it</button>`:""}
+        </div>
+        <p class="hint" style="margin-top:9px">${steps} move${steps===1?"":"s"} made.
+          ${log.length?"Last: "+log[log.length-1]:""}</p>
+      </div></div>`;
+    box.querySelectorAll(".stop").forEach(c=>{
+      c.onclick = () => {
+        const i = +c.dataset.i;
+        if(picked.includes(i)) picked = picked.filter(x=>x!==i);
+        else if(picked.length < 2) picked.push(i);
+        else picked = [i];
+        note = ""; draw();
+      };
+    });
+    const pos = i => tour.indexOf(i);
+    const act = (fn, label) => {
+      const before = t11len(tour);
+      tour = fn(tour, pos(picked[0]), pos(picked[1]));
+      const after = t11len(tour);
+      steps++; log.push(label);
+      note = `<b>${label}.</b> ${after<before
+        ? `The round got <b>${(before-after).toFixed(0)} m shorter</b>.`
+        : `The round got <b>${(after-before).toFixed(0)} m longer</b>. Hill climbing would refuse this move.`}`;
+      picked = []; draw();
+    };
+    if(picked.length===2){
+      box.querySelector("#t11sw").onclick = ()=>act(t11swap, "swapped two stops");
+      box.querySelector("#t11rv").onclick = ()=>act(t11rev, "reversed a stretch");
+    }
+    box.querySelector("#t11bs").onclick = ()=>{
+      const [u,l] = t11bestSwap(tour);
+      if(!u){ note = "<b>Stuck for swaps.</b> No single swap of two stops makes this round shorter."; }
+      else { const b=t11len(tour); tour=u; steps++; note=`<b>Best swap taken:</b> ${(b-l).toFixed(0)} m shorter.`; }
+      picked=[]; draw();
+    };
+    box.querySelector("#t11br").onclick = ()=>{
+      const [u,l] = t11bestRev(tour);
+      if(!u){ note = "<b>Stuck for reverses too.</b> This round is a local optimum for <i>both</i> moves."; }
+      else { const b=t11len(tour); tour=u; steps++; note=`<b>Best reverse taken:</b> ${(b-l).toFixed(0)} m shorter.`; }
+      picked=[]; draw();
+    };
+    box.querySelector("#t11nn").onclick = ()=>{
+      tour=t11nn(); steps=0; picked=[]; log=[];
+      note=`<b>The greedy round: always walk to the nearest stop you have not visited.</b> It gives ${T11.NN} m, which is ${((T11.NN-T11.OPT)/T11.OPT*100).toFixed(0)}% longer than the best. A sensible rule, and still not good enough.`;
+      draw();
+    };
+    let sd=31;
+    box.querySelector("#t11rd").onclick = ()=>{ tour=t11rand(sd+=13); steps=0; picked=[]; log=[]; note=""; draw(); };
+    if(allowAnneal) box.querySelector("#t11an").onclick = ()=>{
+      let cur=tour.slice(), curL=t11len(cur), best=cur.slice(), bestL=curL, T=60, s=99991, uphill=0;
+      const rnd=()=>{ s=(s*1664525+1013904223)>>>0; return (s>>>8)/16777216; };
+      for(let k=0;k<6000;k++){
+        let i=1+Math.floor(rnd()*(T11.N-1)), j=1+Math.floor(rnd()*(T11.N-1));
+        if(i===j) continue;
+        const u = rnd()<0.5 ? t11swap(cur,i,j) : t11rev(cur,i,j);
+        const L=t11len(u), d=curL-L;              // positive is better
+        if(d>0 || rnd() < Math.exp(d/T)){ if(d<=0) uphill++; cur=u; curL=L; }
+        if(curL<bestL){ best=cur.slice(); bestL=curL; }
+        T*=0.999;
+      }
+      tour=best; steps++;
+      note=`<b>Annealed.</b> 6000 steps, and it accepted <b>${uphill}</b> moves that made the round longer on the way. Result: <b>${bestL.toFixed(0)} m</b>${Math.abs(bestL-T11.OPT)<0.05?" &mdash; the shortest round there is.":"."}`;
+      picked=[]; draw();
+    };
+  };
+  draw();
+}
+
+/* ---------------- how big is the search space ---------------- */
+function w11explode(L, box){
+  let n = 20, mode = "jobs";
+  const draw = () => {
+    const count = mode==="jobs" ? Math.pow(2,n) : gamma(n);
+    const secs = count / 1e9;                 // a billion checks a second
+    box.innerHTML = `<div class="two">
+      <div>
+        <div class="row" style="gap:6px;margin-bottom:12px">
+          <button class="btn sm ${mode==="jobs"?"primary":""}" id="mj">which jobs (2<sup>n</sup>)</button>
+          <button class="btn sm ${mode==="tour"?"primary":""}" id="mt">what order ((n&minus;1)!/2)</button>
+        </div>
+        <label class="sl">How many ${mode==="jobs"?"jobs":"stops"}?
+          <input type="range" id="w11n" min="5" max="${mode==="jobs"?60:20}" step="1" value="${Math.min(n, mode==="jobs"?60:20)}">
+          <span class="slv">n = ${n}</span></label>
+        <div class="formula">${mode==="jobs"?`2<sup>${n}</sup>`:`(${n}&minus;1)! / 2`} =
+          <b>${human(count)}</b> possibilities</div>
+        <div class="formula" style="margin-top:8px">a billion checks a second would take
+          <b>${dur(secs)}</b></div>
+      </div>
+      <div><div class="whybox"><h4>Where the wall is</h4><ul>
+        <li><b>Twenty jobs is a million plans.</b> A computer checks that in about a second, which is why we can know the right answer this week.</li>
+        <li><b>Fifty jobs is a thousand million million.</b> Same computer, thirteen days.</li>
+        <li><b>A hundred jobs</b> would outlast the universe, and a hundred jobs is a small factory.</li>
+        <li>Nothing about the computer changes this. <b>You cannot buy your way out of it</b>, so you search instead.</li>
+      </ul></div></div></div>`;
+    box.querySelector("#w11n").oninput = ev => { n = +ev.target.value; draw(); };
+    box.querySelector("#mj").onclick = ()=>{ mode="jobs"; draw(); };
+    box.querySelector("#mt").onclick = ()=>{ mode="tour"; n=Math.min(n,20); draw(); };
+  };
+  function gamma(k){ let r=1; for(let i=2;i<k;i++) r*=i; return r/2; }
+  function human(x){
+    if(x<1e6) return Math.round(x).toLocaleString();
+    const e=Math.floor(Math.log10(x));
+    return (x/Math.pow(10,e)).toFixed(2)+" × 10<sup>"+e+"</sup>";
+  }
+  function dur(s){
+    if(s<1) return "less than a second";
+    if(s<90) return s.toFixed(0)+" seconds";
+    if(s<5400) return (s/60).toFixed(0)+" minutes";
+    if(s<172800) return (s/3600).toFixed(0)+" hours";
+    if(s<3.15e7) return (s/86400).toFixed(0)+" days";
+    const y=s/3.15e7;
+    if(y<1000) return y.toFixed(0)+" years";
+    if(y<1e9) return human(y)+" years";
+    return human(y)+" years — the universe is 1.4 × 10<sup>10</sup> old";
+  }
+  draw();
+}
+
+/* ---------------- multistart, pressed by hand ---------------- */
+function w11restarts(L, box){
+  let runs = [], seed = 500;
+  const climbOnce = () => {
+    let p = w11randomPlan(seed+=7), guard=0;
+    while(guard++ < 60){ const [q,qv] = w11best(p); if(qv <= w11value(p)) break; p = q; }
+    return w11value(p);
+  };
+  const draw = () => {
+    const best = runs.length ? Math.max(...runs) : null;
+    const mean = runs.length ? runs.reduce((a,b)=>a+b,0)/runs.length : null;
+    const W=520,H=190,P=34;
+    let svg = `<svg class="dg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Best value found so far, against the number of restarts.">`;
+    svg += `<line class="ax" x1="${P}" y1="${H-24}" x2="${W-8}" y2="${H-24}"/>`;
+    svg += `<line class="ax" x1="${P}" y1="10" x2="${P}" y2="${H-24}"/>`;
+    const lo=130, hi=150, ymap=v=>H-24-(v-lo)/(hi-lo)*(H-40);
+    svg += `<line class="opt" x1="${P}" y1="${ymap(149)}" x2="${W-8}" y2="${ymap(149)}"/>`;
+    svg += `<text class="sm" x="${W-10}" y="${ymap(149)-5}" text-anchor="end">149, the best possible</text>`;
+    const xmap = k => P + (k+0.5)/Math.max(12,runs.length)*(W-P-14);
+    let run=-1e9, pts=[];
+    runs.forEach((v,k)=>{ run=Math.max(run,v); pts.push([xmap(k),ymap(run)]);
+      svg += `<circle class="dot" cx="${xmap(k)}" cy="${ymap(v)}" r="3.2"/>`; });
+    if(pts.length) svg += `<polyline class="bestline" points="${pts.map(p=>p.join(",")).join(" ")}"/>`;
+    svg += `<text class="sm" x="${P-6}" y="${ymap(130)}" text-anchor="end">130</text>`;
+    svg += `<text class="sm" x="${P-6}" y="${ymap(150)+4}" text-anchor="end">150</text>`;
+    svg += `</svg>`;
+    box.innerHTML = `<div class="two wide-left"><div class="figwrap">${svg}</div>
+      <div><div class="ro">
+        <div class="rorow"><span>restarts so far</span><b>${runs.length}</b></div>
+        <div class="rorow"><span>this restart gave</span><b>${runs.length?runs[runs.length-1].toFixed(0):"—"}</b></div>
+        <div class="rorow"><span>average of them all</span><b>${mean?mean.toFixed(1):"—"}</b></div>
+        <div class="rorow big"><span>best kept</span><b>${best!==null?best.toFixed(0):"—"}</b></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm primary" id="r1">One more restart</button>
+        <button class="btn sm" id="r10">Ten more</button>
+        <button class="btn sm" id="rr">Clear</button>
+      </div>
+      </div></div>`;
+    box.querySelector("#r1").onclick = ()=>{ runs.push(climbOnce()); draw(); };
+    box.querySelector("#r10").onclick = ()=>{ for(let i=0;i<10;i++) runs.push(climbOnce()); draw(); };
+    box.querySelector("#rr").onclick = ()=>{ runs=[]; seed=500; draw(); };
+  };
+  draw();
+}
+
+/* ---------------- hill climbing and annealing, side by side ---------------- */
+/* The honest x axis is OBJECTIVE EVALUATIONS, not steps: hill climbing spends
+   20 evaluations per step (it looks at all twenty neighbours), annealing spends
+   one. Plotting against steps would flatter hill climbing enormously. */
+function w11race(L, box){
+  let seed = 3, hc=null, sa=null;
+  const reset = () => {
+    const start = w11randomPlan(seed);
+    const v0 = w11value(start);
+    hc = { plan:start.slice(), steps:0, done:false, evals:0, hist:[[0,v0]] };
+    let s = (seed*2654435761)>>>0;
+    sa = { plan:start.slice(), best:start.slice(), bestV:v0, T:40, steps:0, evals:0, uphill:0,
+           rnd:()=>{ s=(s*1664525+1013904223)>>>0; return (s>>>8)/16777216; },
+           hist:[[0,v0]] };
+  };
+  reset();
+  const hcStep = () => {
+    if(hc.done) return;
+    const [q,qv] = w11best(hc.plan);
+    hc.evals += 20;                       // it evaluated all twenty neighbours
+    if(qv <= w11value(hc.plan)){ hc.done = true; return; }
+    hc.plan = q; hc.steps++;
+    hc.hist.push([hc.evals, qv]);
+  };
+  const saBurst = (k) => {
+    for(let i=0;i<k;i++){
+      const idx = Math.floor(sa.rnd()*20);
+      const cand = w11flip(sa.plan, idx);
+      sa.evals++;                         // one neighbour, one evaluation
+      const d = w11value(cand) - w11value(sa.plan);
+      if(d>0 || sa.rnd() < Math.exp(d/sa.T)){ if(d<=0) sa.uphill++; sa.plan = cand; }
+      if(w11value(sa.plan) > sa.bestV){
+        sa.best = sa.plan.slice(); sa.bestV = w11value(sa.plan);
+        sa.hist.push([sa.evals, sa.bestV]);
+      }
+      sa.T *= 0.995; sa.steps++;
+    }
+  };
+  const draw = () => {
+    const hv = w11value(hc.plan);
+    const W=620, H=250, PL=42, PB=30;
+    const maxE = Math.max(600, hc.evals, sa.evals);
+    const lo = 20, hi = 155;
+    const xm = e => PL + e/maxE*(W-PL-14);
+    const ym = v => H-PB-(v-lo)/(hi-lo)*(H-PB-16);
+    const path = h => h.map(([e,v],k)=>{
+        const p = (k? `L${xm(h[k-1][0])},${ym(v)} ` : "") + `L${xm(e)},${ym(v)}`;
+        return k ? p : `M${xm(e)},${ym(v)}`;
+      }).join(" ");
+    let svg=`<svg class="dg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Best value found so far against the number of objective evaluations, for hill climbing and for simulated annealing from the same starting plan.">`;
+    svg+=`<line class="ax" x1="${PL}" y1="${H-PB}" x2="${W-8}" y2="${H-PB}"/>`;
+    svg+=`<line class="ax" x1="${PL}" y1="12" x2="${PL}" y2="${H-PB}"/>`;
+    svg+=`<line class="opt" x1="${PL}" y1="${ym(149)}" x2="${W-8}" y2="${ym(149)}"/>`;
+    svg+=`<text class="sm" x="${W-10}" y="${ym(149)-5}" text-anchor="end">149, the best possible</text>`;
+    [40,80,120,149].forEach(v=>{ svg+=`<text class="sm" x="${PL-6}" y="${ym(v)+4}" text-anchor="end">${v}</text>`; });
+    svg+=`<text class="sm" x="${(PL+W)/2}" y="${H-8}" text-anchor="middle">objective evaluations used</text>`;
+    /* annealing first, so hill climbing draws on top */
+    svg+=`<path class="saline" d="${path(sa.hist)} L${xm(sa.evals)},${ym(sa.bestV)}"/>`;
+    svg+=`<path class="hcline" d="${path(hc.hist)} L${xm(hc.evals)},${ym(hv)}"/>`;
+    if(hc.done){
+      svg+=`<path class="hcdead" d="M${xm(hc.evals)},${ym(hv)} L${xm(maxE)},${ym(hv)}"/>`;
+      svg+=`<circle class="stopdot" cx="${xm(hc.evals)}" cy="${ym(hv)}" r="4.5"/>`;
+      svg+=`<text class="sm stopped" x="${xm(hc.evals)+9}" y="${ym(hv)+17}">hill climbing stopped here</text>`;
+    }
+    svg+=`<text class="sm saname" x="${W-10}" y="${ym(sa.bestV)-7}" text-anchor="end">annealing</text>`;
+    svg+=`</svg>`;
+    box.innerHTML=`<div class="two wide-left"><div class="figwrap">${svg}</div>
+      <div><table class="pintab racetab"><tr><th></th><th>hill climbing</th><th>annealing</th></tr>
+      <tr><td>best value</td><td><b>${hv.toFixed(0)}</b></td><td><b>${sa.bestV.toFixed(0)}</b></td></tr>
+      <tr><td>evaluations used</td><td>${hc.evals}</td><td>${sa.evals}</td></tr>
+      <tr><td>worse moves taken</td><td>0</td><td>${sa.uphill}</td></tr>
+      <tr><td>state</td><td>${hc.done?"<b class='stopped'>stopped</b>":"climbing"}</td><td>T = ${sa.T.toFixed(1)}</td></tr></table>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm primary" id="rcs">Step both</button>
+        <button class="btn sm" id="rcr">Spend the whole budget</button>
+        <button class="btn sm" id="rcx">Ten times the budget</button>
+        <button class="btn sm" id="rcn">New start</button>
+      </div>
+      <p class="hint" style="margin-top:9px">Both get <b>600 evaluations</b> to spend.
+      Hill climbing spends <b>20 per step</b>,
+      because it looks at every neighbour. Annealing spends <b>one</b>. Counting steps would
+      flatter hill climbing; counting evaluations is the fair way.</p>
+      </div></div>`;
+    box.querySelector("#rcs").onclick=()=>{ hcStep(); saBurst(60); draw(); };
+    box.querySelector("#rcr").onclick=()=>{ let g=0; while(!hc.done && g++<60) hcStep();
+      if(sa.evals < 600) saBurst(600 - sa.evals); draw(); };
+    box.querySelector("#rcx").onclick=()=>{ let g=0; while(!hc.done && g++<60) hcStep();
+      if(sa.evals < 6000) saBurst(6000 - sa.evals); draw(); };
+    box.querySelector("#rcn").onclick=()=>{ seed+=9; reset(); draw(); };
+  };
+  draw();
+}
+
+Object.assign(W11MODES, { tsp: w11tsp, explode: w11explode, restarts: w11restarts, race: w11race });
+R.live=(e,card)=>{
+  const L=card.c;
+  const sub={plan:"<b>Click any job to change your mind about it.</b> The hours, the penalty and the value are all recomputed as you go.",climb:"<b>This is hill climbing, one step at a time.</b> The outlined row is the change it wants to make next.",anneal:"<b>Drag the two sliders.</b> The whole of simulated annealing is this one probability.",types:"<b>Walk the round trip.</b> Each step shows what you are holding and what type it is.",
+    dictbuild:"<b>Change the reading.</b> The dictionary, the JSON text and what the receiver gets are all rebuilt as you type.",
+    callback:"<b>Send a reading.</b> Your callback is not running until a message lands; then it runs once, from top to bottom."}[L.mode];
+  if(window.LIVE_STOP) LIVE_STOP();
+  e.innerHTML=head(card,esc(L.title),sub)+`<div><div id="stageL"></div>
+    <div class="tasksbelow"><ul class="tasks">${L.tasks.map(t=>`<li>${t}</li>`).join("")}</ul>
+    </div></div>`;
+  if(W11MODES[L.mode]) W11MODES[L.mode](L,$("#stageL")); else live8(L,$("#stageL"));
+};
+function live8(L,box){
+  if(L.mode==="types"){
+    const READ={machine:"M3",temp_c:91.4,ok:true};
+    const dictTxt=`{'machine': 'M3', 'temp_c': 91.4, 'ok': True}`;
+    const jsonTxt=`{"machine": "M3", "temp_c": 91.4, "ok": true}`;
+    const STEPS=[
+      {who:"you", line:'reading = {"machine": "M3", "temp_c": 91.4, "ok": True}', val:dictTxt, type:"dict", note:"You build it. Values have names on them, and you can index it: <code>reading[\"temp_c\"]</code>."},
+      {who:"you", line:"payload = json.dumps(reading)", val:jsonTxt, type:"str", note:"Still on your laptop. It <b>looks</b> like the dictionary, but it is one long string - and <code>True</code> became <code>true</code>."},
+      {who:"library", line:"client.publish(TOPIC, payload)", val:"b'"+jsonTxt+"'", type:"bytes", note:"The library turns the text into bytes and puts them on the network. <b>You do not write this step.</b>"},
+      {who:"library", line:"msg.payload   (inside the callback)", val:"b'"+jsonTxt+"'", type:"bytes", note:"The same bytes arrive at the other program. Notice the <code>b</code> in front of the quotes."},
+      {who:"you", line:"text = msg.payload.decode()", val:jsonTxt, type:"str", note:"Bytes back to text. Still a string: indexing it by a key would be a <code>TypeError</code>."},
+      {who:"you", line:"reading = json.loads(text)", val:dictTxt, type:"dict", note:"A dictionary again, in a different program, on a different computer. <b>Now</b> you can write <code>reading[\"temp_c\"]</code>."}];
+    let k=0;
+    box.innerHTML=`<div class="panelbox">
+        <div class="row" style="margin-bottom:10px"><button class="btn sm" id="bk">&larr; back</button><button class="btn sm primary" id="fw">next step &rarr;</button>
+          <span class="stepinfo" id="si"></span></div>
+        <div id="chain"></div>
+        <div class="cap">what you are holding now</div><pre class="out" id="val"></pre>
+        <div class="note" id="nt" style="margin-top:10px"></div></div>`;
+    const draw=()=>{
+      $("#chain").innerHTML=STEPS.map((s,i)=>`<div class="codeline ${i===k?"hit":(i<k?"":"dead")}" style="margin:3px 0">
+        <b style="color:${i===k?"var(--red)":"var(--ink-3)"}">${s.type.padEnd(5)}</b>  ${hl(s.line)}
+        <span class="stepinfo"> &nbsp;${s.who==="you"?"you write this":"the library does this"}</span></div>`).join("");
+      $("#si").textContent=`step ${k+1} of ${STEPS.length}`;
+      $("#val").textContent=STEPS[k].val;
+      $("#nt").innerHTML=STEPS[k].note;
+      $("#lc").innerHTML=`<span class="cm"># where the value is now</span>
+${STEPS[k].who==="you"?"your program":"the network / the library"}
+
+<span class="cm"># what you are holding</span>
+type  = <span class="res">&lt;class '${STEPS[k].type}'&gt;</span>
+value = <span class="res">${esc(STEPS[k].val)}</span>
+
+<span class="cm"># can you write reading["temp_c"] yet?</span>
+<span class="${STEPS[k].type==="dict"?"on":"res"}">${STEPS[k].type==="dict"?"yes":"no  - it is a "+STEPS[k].type+" right now"}</span>`;
+    };
+    $("#fw").onclick=()=>{ k=Math.min(STEPS.length-1,k+1); draw(); };
+    $("#bk").onclick=()=>{ k=Math.max(0,k-1); draw(); };
+    $("#rs").onclick=()=>{ k=0; draw(); };
+    draw(); return;
+  }
+  if(L.mode==="dictbuild"){
+    let machine="M3", temp=91.4, ok=true, hum=false;
+    box.innerHTML=`<div class="panelbox">
+        <div class="tin"><span>machine</span><input type="text" id="n1" value="M3" maxlength="10"></div>
+        <div class="sl"><span>temp_c</span><input type="range" id="s1" min="75" max="99" step="0.1" value="91.4"><b id="v1">91.4</b></div>
+        <div class="row" style="margin:8px 0"><label class="ck"><input type="checkbox" id="c1" checked> <code>"ok": True</code></label>
+          <label class="ck"><input type="checkbox" id="c2"> add <code>"humidity_pct"</code></label></div>
+        <div class="cap">the dictionary you built</div><pre class="out" id="d1"></pre>
+        <div class="cap">json.dumps(reading) - the text that travels</div><pre class="out" id="d2"></pre>
+        <div class="cap">what the receiver takes out</div><pre class="out" id="d3"></pre></div>`;
+    const draw=()=>{
+      const py=`{'machine': '${machine}', 'temp_c': ${temp}, 'ok': ${ok?"True":"False"}${hum?", 'humidity_pct': 45":""}}`;
+      const js=`{"machine": "${machine}", "temp_c": ${temp}, "ok": ${ok?"true":"false"}${hum?', "humidity_pct": 45':""}}`;
+      $("#d1").textContent=py; $("#d2").textContent=js;
+      $("#d3").textContent=`reading["machine"]  ->  '${machine}'
+reading["temp_c"]   ->  ${temp}
+reading["ok"]       ->  ${ok?"True":"False"}` + (hum?`
+reading["humidity_pct"] ->  45`:`
+reading["humidity_pct"] ->  KeyError`);
+      $("#lc").innerHTML=`reading = {
+    "machine": <span class="res">"${machine}"</span>,
+    "temp_c": <span class="res">${temp}</span>,
+    "ok": <span class="res">${ok?"True":"False"}</span>,${hum?'\n    "humidity_pct": <span class="res">45</span>,':""}
+}
+payload = json.dumps(reading)
+print(payload)
+<span class="res">${esc(js)}</span>
+
+<span class="cm"># the message is ${js.length} characters long</span>
+<span class="cm"># Python True became JSON ${ok?"true":"false"} - lower case</span>`;
+    };
+    $("#n1").oninput=ev=>{ machine=ev.target.value||"M3"; draw(); };
+    $("#s1").oninput=ev=>{ temp=Math.round(+ev.target.value*10)/10; $("#v1").textContent=temp.toFixed(1); draw(); };
+    $("#c1").onchange=ev=>{ ok=ev.target.checked; draw(); };
+    $("#c2").onchange=ev=>{ hum=ev.target.checked; draw(); };
+    $("#rs").onclick=()=>{ machine="M3"; temp=91.4; ok=true; hum=false;
+      $("#n1").value="M3"; $("#s1").value=91.4; $("#v1").textContent="91.4"; $("#c1").checked=true; $("#c2").checked=false; draw(); };
+    draw(); return;
+  }
+  if(L.mode==="callback"){
+    let limit=90, alarms=0, seen=0, stream=null, last=null;
+    const temps=[91.4,84.0,95.2,88.1,92.0,79.6,90.6,86.4,93.3,81.2];
+    box.innerHTML=`<div class="panelbox">
+        <div class="row" style="margin-bottom:8px"><button class="btn sm primary" id="go">send a reading</button>
+          <label class="ck"><input type="checkbox" id="st"> the sender's stream (one every 1.5 s)</label></div>
+        <div class="sl"><span>alarm above</span><input type="range" id="s1" min="80" max="96" step="0.5" value="90"><b id="v1">90</b></div>
+        <div id="steps" style="margin:10px 0"></div>
+        <div class="cap">your program's output</div><div class="console" id="con"></div></div>`;
+    const STEPLINES=["a message lands on your topic",
+      "the library calls on_message(client, userdata, msg)",
+      "text    = msg.payload.decode()",
+      "reading = json.loads(text)",
+      'if reading["temp_c"] > LIMIT:',
+      "print(...)  - then the callback finishes and waits again"];
+    const drawSteps=(active)=>{ $("#steps").innerHTML=STEPLINES.map((l,i)=>
+      `<div class="codeline ${active>=i?"hit":"dead"}" style="margin:2px 0">${i<2?`<span class="stepinfo">${l}</span>`:hl(l)}</div>`).join(""); };
+    const out=(cls,txt)=>{ const c=$("#con"); const d=document.createElement("div"); d.innerHTML=`<span class="${cls}">${esc(txt)}</span>`;
+      c.appendChild(d); c.scrollTop=c.scrollHeight; };
+    const fire=()=>{
+      if(!document.getElementById("con")){ clearInterval(stream); stream=null; return; }
+      const t=temps[seen%temps.length]; seen++; last=t; const ts=t.toFixed(1);
+      const alarm=t>limit; if(alarm) alarms++;
+      drawSteps(5);
+      out(alarm?"me":"m",(alarm?"ALARM":"ok   ")+" M3 "+ts);
+      $("#lc").innerHTML=`<span class="cm"># nothing in your program is looping.</span>
+<span class="cm"># the library called your function, once, with:</span>
+msg.topic   = <span class="res">"ine315/ahmed/telemetry"</span>
+msg.payload = <span class="res">b'{"machine": "M3", "temp_c": ${ts}, "ok": true}'</span>
+
+text    = msg.payload.decode()
+reading = json.loads(text)
+reading["temp_c"] = <span class="res">${ts}</span>
+
+if reading["temp_c"] > ${limit}:      <span class="res">${alarm?"True":"False"}</span>
+<span class="${alarm?"res":"on"}">${alarm?'    print("ALARM", ...)':'    print("ok   ", ...)'}</span>
+
+<span class="cm"># messages seen: ${seen}   alarms: ${alarms}</span>`;
+    };
+    $("#go").onclick=fire;
+    $("#s1").oninput=ev=>{ limit=+ev.target.value; $("#v1").textContent=limit; };
+    $("#st").onchange=ev=>{ clearInterval(stream); stream=null; if(ev.target.checked) stream=setInterval(fire,1500); };
+    window.LIVE_STOP=()=>{ clearInterval(stream); stream=null; };
+    $("#rs").onclick=()=>{ clearInterval(stream); stream=null; $("#st").checked=false; alarms=0; seen=0; $("#con").innerHTML="";
+      drawSteps(-1); $("#lc").innerHTML='<span class="cm"># press "send a reading" - nothing runs until one arrives</span>'; };
+    drawSteps(-1);
+    $("#lc").innerHTML='<span class="cm"># your callback is written, handed over, and waiting.</span>\n<span class="cm"># press "send a reading" to make a message land.</span>';
+    return;
+  }
+}
+/* ---------------- navigation ---------------- */
+const chips=$("#chips");
+let ch=`<button class="chip" data-t="welcome"><b>W11</b> Start</button>`;
+[1,2].forEach(s=>{ ch+=`<button class="chip sep" data-t="s${s}">&#9656; Session ${s}</button>`;
+  DATA.blocks.filter(b=>b.session===s).forEach(b=>ch+=`<button class="chip" data-t="${b.id}">${esc(b.short)}</button>`); });
+ch+=`<button class="chip" data-t="summary">Summary</button>`;
+chips.innerHTML=ch;
+chips.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ const t=c.dataset.t;
+  const i=CARDS.findIndex(x=> t==="welcome"?x.type==="welcome": t==="summary"?x.type==="summary":
+    (t[0]==="s"&&t.length===2)?(x.type==="session"&&x.session===+t[1]): (x.block&&x.block.id===t)); go(i); });
+function go(i){
+  if(window.LIVE_STOP){ LIVE_STOP(); window.LIVE_STOP=null; }
+  cur=Math.max(0,Math.min(CARDS.length-1,i)); const c=CARDS[cur];
+  $("#stage").innerHTML=`<article class="card" id="card"></article>`;
+  ctl=R[c.type]($("#card"),c)||{};
+  const key=c.type==="welcome"?"welcome":c.type==="summary"?"summary":c.type==="session"?"s"+c.session:c.block.id;
+  chips.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x.dataset.t===key));
+  const on=chips.querySelector(".chip.on"); if(on) on.scrollIntoView({block:"nearest",inline:"nearest"});
+  if(c.block){ const inB=CARDS.filter(x=>x.block===c.block); $("#where").textContent=`Session ${c.session} · ${c.block.short} · ${c.label} · ${inB.indexOf(c)+1} of ${inB.length}`; }
+  else $("#where").textContent=c.label;
+  $("#prog").style.width=(cur/(CARDS.length-1)*100)+"%";
+  $("#prevBtn").disabled=cur===0; $("#nextBtn").disabled=cur===CARDS.length-1;
+  history.replaceState(null,"","#"+cur); window.scrollTo(0,0);
+}
+function next(){ if(ctl.advance&&ctl.advance()) return; if(cur<CARDS.length-1) go(cur+1); }
+function prev(){ if(ctl.back&&ctl.back()) return; if(cur>0) go(cur-1); }
+$("#nextBtn").onclick=()=>{ if(cur<CARDS.length-1) go(cur+1); };
+$("#prevBtn").onclick=()=>{ if(cur>0) go(cur-1); };
+document.addEventListener("keydown",ev=>{ if(ev.target.matches("input,textarea,select")) return;
+  if(ev.key==="ArrowRight"||ev.key==="PageDown"){ ev.preventDefault(); next(); }
+  if(ev.key==="ArrowLeft"||ev.key==="PageUp"){ ev.preventDefault(); prev(); } });
+go(parseInt(location.hash.slice(1))||0);
+</script>
+</body>
+</html>
